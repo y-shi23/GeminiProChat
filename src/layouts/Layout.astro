@@ -30,6 +30,22 @@ const { title } = Astro.props;
 </html>
 
 <style is:global>
+  @font-face {
+    font-family: 'FangZhengLanTingKanSong';
+    src: url('/fonts/方正兰亭刊宋_GBK.TTF') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+  }
+
+  @font-face {
+    font-family: 'TiemposText';
+    src: url('/fonts/TiemposText-Regular.ttf') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+  }
+
   :root {
     --c-bg: #fbfbfb;
     --c-fg: #444444;
@@ -98,6 +114,22 @@ const { title } = Astro.props;
 
   ::view-transition-new(root) {
     z-index: 1;
+  }
+
+  /* 为AI对话内容设置字体 */
+  .message {
+    font-family: 'TiemposText', 'FangZhengLanTingKanSong', system-ui, sans-serif;
+  }
+
+  .message * {
+    font-family: inherit;
+  }
+
+  /* 中文字符使用方正兰亭刊宋 */
+  .message :lang(zh),
+  .message :lang(zh-CN),
+  .message :lang(zh-TW) {
+    font-family: 'FangZhengLanTingKanSong', 'TiemposText', system-ui, sans-serif;
   }
 </style>
 
