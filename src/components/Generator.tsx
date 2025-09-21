@@ -4,7 +4,7 @@ import { generateSignature } from '@/utils/auth'
 import IconClear from './icons/Clear'
 import IconSend from './icons/Send'
 import IconX from './icons/X'
-import Picture from './icons/Picture'
+// import Picture from './icons/Picture'
 import MessageItem from './MessageItem'
 import ErrorMessageItem from './ErrorMessageItem'
 import type { ChatMessage, ErrorMessage } from '@/types'
@@ -17,7 +17,7 @@ export default () => {
   const [loading, setLoading] = createSignal(false)
   const [controller, setController] = createSignal<AbortController>(null)
   const [isStick, setStick] = createSignal(false)
-  const [showComingSoon, setShowComingSoon] = createSignal(false)
+  // const [showComingSoon, setShowComingSoon] = createSignal(false)
   const maxHistoryMessages = parseInt(import.meta.env.PUBLIC_MAX_HISTORY_MESSAGES || '99')
 
   createEffect(() => (isStick() && smoothToBottom()))
@@ -207,14 +207,14 @@ export default () => {
     }
   }
 
-  const handlePictureUpload = () => {
-    // coming soon
-    setShowComingSoon(true)
-  }
+  // const handlePictureUpload = () => {
+  //   // coming soon
+  //   setShowComingSoon(true)
+  // }
 
   return (
     <div my-6>
-      {/* beautiful coming soon alert box, position: fixed, screen center, no transparent background, z-index 100*/}
+      {/* beautiful coming soon alert box, position: fixed, screen center, no transparent background, z-index 100
       <Show when={showComingSoon()}>
         <div class="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-100">
           <div class="bg-white rounded-md shadow-md p-6">
@@ -227,7 +227,7 @@ export default () => {
             <p class="text-gray-500 mt-2">Chat with picture is coming soon!</p>
           </div>
         </div>
-      </Show>
+      </Show> */}
 
       <Index each={messageList()}>
         {(message, index) => (
@@ -256,9 +256,9 @@ export default () => {
         )}
       >
         <div class="gen-text-wrapper relative">
-          <button title="Picture" onClick={handlePictureUpload} class="absolute left-1rem top-50% translate-y-[-50%]">
+          {/* <button title="Picture" onClick={handlePictureUpload} class="absolute left-1rem top-50% translate-y-[-50%]">
             <Picture />
-          </button>
+          </button> */}
           <textarea
             ref={inputRef!}
             onKeyDown={handleKeydown}

@@ -49,7 +49,7 @@ export default defineConfig({
     'gen-cb-wrapper': 'h-12 my-4 fcc gap-4 bg-(slate op-15) rounded-sm',
     'gen-cb-stop': 'px-2 py-0.5 border border-slate rounded-md text-sm op-70 cursor-pointer hover:bg-slate/10',
     'gen-text-wrapper': 'my-4 fc gap-2 transition-opacity',
-    'gen-textarea': 'w-full px-3 py-3 min-h-12 max-h-36 rounded-full bg-(slate op-15) resize-none base-focus placeholder:op-50 dark:(placeholder:op-30) scroll-pa-8px pl-10 transition-all duration-200',
+    'gen-textarea': 'w-full px-6 py-3 min-h-12 max-h-36 rounded-full bg-(slate op-15) resize-none base-focus placeholder:op-50 dark:(placeholder:op-30) scroll-pa-8px transition-all duration-200',
     'sys-edit-btn': 'inline-fcc gap-1 text-sm bg-slate/20 px-2 py-1 rounded-md transition-colors cursor-pointer hover:bg-slate/50',
     'stick-btn-on': '!bg-$c-fg text-$c-bg hover:op-80',
   }],
