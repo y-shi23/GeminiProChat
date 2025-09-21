@@ -2,6 +2,7 @@ import { Index, Show, createEffect, createSignal, onCleanup, onMount } from 'sol
 import { useThrottleFn } from 'solidjs-use'
 import { generateSignature } from '@/utils/auth'
 import IconClear from './icons/Clear'
+import IconSend from './icons/Send'
 import IconX from './icons/X'
 import Picture from './icons/Picture'
 import MessageItem from './MessageItem'
@@ -271,8 +272,8 @@ export default () => {
             rows="1"
             class="gen-textarea"
           />
-          <button onClick={handleButtonClick} gen-slate-btn>
-            Send
+          <button onClick={handleButtonClick} gen-slate-btn title="Send">
+            <IconSend />
           </button>
           <button title="Clear" onClick={clear} gen-slate-btn>
             <IconClear />
