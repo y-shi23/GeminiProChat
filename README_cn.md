@@ -4,6 +4,8 @@
 
 与 Gemini Pro 聊天的最简 WebUI。
 
+现已支持 OpenAI 格式模型（OpenAI 及任意 OpenAI 兼容厂商）流式输出。
+
 体验网址： [Gemini Pro Chat](https://www.geminiprochat.com)
 
 > [!WARNING]
@@ -74,6 +76,24 @@ babaohuang/geminiprochat:latest
 | `PUBLIC_SECRET_KEY` | 项目的密文字符串。用于为 API 调用生成签名 | ❌ |
 | `SITE_PASSWORD` | 为网站设置密码，支持用逗号分隔的多个密码。如果不设置，网站将允许公开访问 | ❌ |
 | `GEMINI_MODEL_NAME` | 自定义要使用的 Gemini 模型。如果不设置，默认为 `gemini-2.5-flash` | ❌ |
+| `AI_PROVIDER` | 选择后端：`gemini` 或 `openai`。若不设置，将自动判断：当存在 `OPENAI_API_KEY` 时使用 OpenAI，否则使用 Gemini | ❌ |
+| `OPENAI_API_KEY` | OpenAI/兼容厂商的 API Key | ❌ |
+| `OPENAI_BASE_URL` | OpenAI 兼容 API 的基础地址（如 `https://api.openai.com`，或代理/第三方 `https://api.openrouter.ai` 等）。若缺失 `/v1` 将自动追加 | ❌ |
+| `OPENAI_MODEL_NAME` | OpenAI 聊天模型名（如 `gpt-4o-mini`、`gpt-4o`，或兼容厂商自定义名） | ❌ |
+| `OPENAI_TEMPERATURE` | OpenAI 请求的温度。默认 `0.7` | ❌ |
+
+### 使用 OpenAI 格式模型
+
+- 设置 `AI_PROVIDER=openai`（或仅设置 `OPENAI_API_KEY`，系统会自动选择）。
+- 如使用兼容厂商，请设置 `OPENAI_BASE_URL`（如 OpenRouter、Groq、本地推理网关等）。
+- `.env` 示例：
+
+```
+AI_PROVIDER=openai
+OPENAI_API_KEY=sk-...
+OPENAI_BASE_URL=https://api.openai.com
+OPENAI_MODEL_NAME=gpt-4o-mini
+```
 
 ## 本地运行
 

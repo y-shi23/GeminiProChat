@@ -4,6 +4,8 @@ English | [中文](README_cn.md) | [Italiano](README_it.md) | [日本語](README
 
 Minimal web UI for Gemini Pro Chat.
 
+Now also supports OpenAI-format models (OpenAI and any OpenAI-compatible providers) with streaming.
+
 > [!WARNING]
 > **Disclaimer:** This project is not affiliated with, endorsed by, or sponsored by Google. It is an independent project that uses Google's Gemini Pro API.
 
@@ -60,6 +62,24 @@ You can control the website through environment variables.
 | `PUBLIC_SECRET_KEY` | Secret string for the project. Use for generating signatures for API calls | ❌ |
 | `SITE_PASSWORD` | Set password for site, support multiple password separated by comma. If not set, site will be public | ❌ |
 | `GEMINI_MODEL_NAME` | Customize the Gemini model to use. Defaults to `gemini-2.5-flash` if not set | ❌ |
+| `AI_PROVIDER` | `gemini` or `openai`. If omitted, auto-detects: uses OpenAI when `OPENAI_API_KEY` is set, otherwise Gemini | ❌ |
+| `OPENAI_API_KEY` | API key for OpenAI/OpenAI-compatible providers | ❌ |
+| `OPENAI_BASE_URL` | Base URL for OpenAI-compatible API (e.g. `https://api.openai.com` or a proxy like `https://api.openrouter.ai`). `/v1` is appended automatically if missing | ❌ |
+| `OPENAI_MODEL_NAME` | OpenAI chat model name (e.g. `gpt-4o-mini`, `gpt-4o`, provider-specific names) | ❌ |
+| `OPENAI_TEMPERATURE` | Sampling temperature for OpenAI requests. Default `0.7` | ❌ |
+
+### Using OpenAI-format models
+
+- Set `AI_PROVIDER=openai` (or just set `OPENAI_API_KEY` to auto-detect).
+- Optionally set `OPENAI_BASE_URL` when using compatible providers (OpenRouter, Groq, Local AI gateways, etc.).
+- Example `.env`:
+
+```
+AI_PROVIDER=openai
+OPENAI_API_KEY=sk-...
+OPENAI_BASE_URL=https://api.openai.com
+OPENAI_MODEL_NAME=gpt-4o-mini
+```
 
 ## Running Locally
 
