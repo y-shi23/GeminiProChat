@@ -46,7 +46,7 @@ export default defineConfig({
     'gpt-password-input': 'px-4 py-3 h-12 rounded-sm bg-(slate op-15) base-focus',
     'gpt-password-submit': 'fcc h-12 w-12 bg-slate cursor-pointer bg-op-20 hover:bg-op-50',
     'gen-slate-btn': 'h-12 w-12 min-w-12 max-w-12 min-h-12 max-h-12 fcc bg-(slate op-15) hover:bg-op-20 rounded-full transition-all duration-200 shrink-0',
-    'gen-cb-wrapper': 'h-12 my-4 fcc gap-4 bg-(slate op-15) rounded-sm',
+    'gen-cb-wrapper': 'h-12 my-4 fcc gap-4 bg-(slate op-15) px-6 rounded-full',
     'gen-cb-stop': 'px-2 py-0.5 border border-slate rounded-md text-sm op-70 cursor-pointer hover:bg-slate/10',
     'gen-text-wrapper': 'my-4 fc gap-2 transition-opacity',
     'gen-textarea': 'w-full px-6 py-3 min-h-12 max-h-36 rounded-full bg-(slate op-15) resize-none base-focus placeholder:op-50 dark:(placeholder:op-30) scroll-pa-8px transition-all duration-200',
