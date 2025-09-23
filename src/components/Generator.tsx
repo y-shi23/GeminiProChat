@@ -246,39 +246,87 @@ export default () => {
         />
       )}
       {currentError() && <ErrorMessageItem data={currentError()} onRetry={retryLastFetch} />}
-      <Show
-        when={!loading()}
-        fallback={() => (
-          <div class="gen-cb-wrapper">
-            <span>AI is thinking...</span>
-            <div class="gen-cb-stop" onClick={stopStreamFetch}>Stop</div>
+      {/* Fixed input area at bottom when messages exist */}
+      <Show when={messageList().length > 0}>
+        {/* Background fill between input and footer */}
+        <div class="fixed bottom-0 left-0 right-0 h-8 z-5 bg-[var(--c-bg)]"></div>
+
+        <div class="fixed bottom-8 left-0 right-0 z-10 bg-[var(--c-bg)] pt-2 pb-4">
+          <div class="max-w-[70ch] mx-auto px-8">
+            <Show
+              when={!loading()}
+              fallback={() => (
+                <div class="gen-cb-wrapper">
+                  <span>AI is thinking...</span>
+                  <div class="gen-cb-stop" onClick={stopStreamFetch}>Stop</div>
+                </div>
+              )}
+            >
+              <div class="gen-text-wrapper relative">
+                {/* <button title="Picture" onClick={handlePictureUpload} class="absolute left-1rem top-50% translate-y-[-50%]">
+                  <Picture />
+                </button> */}
+                <textarea
+                  ref={inputRef!}
+                  onKeyDown={handleKeydown}
+                  placeholder="Enter something..."
+                  autocomplete="off"
+                  autofocus
+                  onInput={() => {
+                    inputRef.style.height = 'auto'
+                    inputRef.style.height = `${inputRef.scrollHeight}px`
+                  }}
+                  rows="1"
+                  class="gen-textarea"
+                />
+                <button onClick={handleButtonClick} gen-slate-btn title="Send">
+                  <IconSend />
+                </button>
+                <button title="Clear" onClick={clear} gen-slate-btn>
+                  <IconClear />
+                </button>
+              </div>
+            </Show>
           </div>
-        )}
-      >
-        <div class="gen-text-wrapper relative">
-          {/* <button title="Picture" onClick={handlePictureUpload} class="absolute left-1rem top-50% translate-y-[-50%]">
-            <Picture />
-          </button> */}
-          <textarea
-            ref={inputRef!}
-            onKeyDown={handleKeydown}
-            placeholder="Enter something..."
-            autocomplete="off"
-            autofocus
-            onInput={() => {
-              inputRef.style.height = 'auto'
-              inputRef.style.height = `${inputRef.scrollHeight}px`
-            }}
-            rows="1"
-            class="gen-textarea"
-          />
-          <button onClick={handleButtonClick} gen-slate-btn title="Send">
-            <IconSend />
-          </button>
-          <button title="Clear" onClick={clear} gen-slate-btn>
-            <IconClear />
-          </button>
         </div>
+      </Show>
+
+      {/* Regular input area when no messages */}
+      <Show when={messageList().length === 0}>
+        <Show
+          when={!loading()}
+          fallback={() => (
+            <div class="gen-cb-wrapper">
+              <span>AI is thinking...</span>
+              <div class="gen-cb-stop" onClick={stopStreamFetch}>Stop</div>
+            </div>
+          )}
+        >
+          <div class="gen-text-wrapper relative">
+            {/* <button title="Picture" onClick={handlePictureUpload} class="absolute left-1rem top-50% translate-y-[-50%]">
+              <Picture />
+            </button> */}
+            <textarea
+              ref={inputRef!}
+              onKeyDown={handleKeydown}
+              placeholder="Enter something..."
+              autocomplete="off"
+              autofocus
+              onInput={() => {
+                inputRef.style.height = 'auto'
+                inputRef.style.height = `${inputRef.scrollHeight}px`
+              }}
+              rows="1"
+              class="gen-textarea"
+            />
+            <button onClick={handleButtonClick} gen-slate-btn title="Send">
+              <IconSend />
+            </button>
+            <button title="Clear" onClick={clear} gen-slate-btn>
+              <IconClear />
+            </button>
+          </div>
+        </Show>
       </Show>
       {/* <div class="fixed bottom-5 left-5 rounded-md hover:bg-slate/10 w-fit h-fit transition-colors active:scale-90" class:stick-btn-on={isStick()}>
         <div>
