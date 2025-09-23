@@ -115,7 +115,7 @@ const loadModelsFromEnv = (): ModelConfig[] => {
 }
 
 const publicModels = (configs: ModelConfig[]) =>
-  configs.map(m => ({ id: m.id, label: m.label || `${m.provider}:${m.model}`, provider: m.provider, model: m.model }))
+  configs.map(m => ({ id: m.id, label: m.label, provider: m.provider, model: m.model }))
 
 const pickDefaultModelId = (configs: ModelConfig[]): string | null => {
   if (!configs.length) return null
