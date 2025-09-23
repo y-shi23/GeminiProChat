@@ -9,6 +9,9 @@ dist/
 # dependencies
 node_modules/
 
+# reference
+claude for chrome/
+
 # logs
 npm-debug.log*
 yarn-debug.log*
