@@ -52,7 +52,7 @@ async function streamFromOpenAI(history: ChatMessage[], newMessage: string, opts
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${openaiApiKey}`,
+      Authorization: `Bearer ${effectiveKey}`,
     },
     body: JSON.stringify({
       model: opts?.model || openaiModelName,

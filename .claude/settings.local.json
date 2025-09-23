@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "Bash(npm run dev:*)",
-      "Bash(npm run lint)"
+      "Bash(npm run lint)",
+      "WebFetch(domain:localhost)",
+      "Bash(curl:*)"
     ],
     "deny": [],
     "ask": []

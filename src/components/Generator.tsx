@@ -1,4 +1,4 @@
-import { Index, Show, createEffect, createSignal, onCleanup, onMount, batch } from 'solid-js'
+import { Index, Show, For, createEffect, createSignal, onCleanup, onMount, batch } from 'solid-js'
 import { useThrottleFn } from 'solidjs-use'
 import { generateSignature } from '@/utils/auth'
 import {
@@ -10,7 +10,6 @@ import {
   generateSessionTitle,
   migrateLegacyData
 } from '@/utils/sessions'
-import IconClear from './icons/Clear'
 import IconSend from './icons/Send'
 import IconX from './icons/X'
 import MessageItem from './MessageItem'
@@ -35,6 +34,12 @@ export default () => {
   // Auto-scroll to bottom when streaming; disables when user scrolls up
   const [isStick, setStick] = createSignal(true)
   const maxHistoryMessages = parseInt(import.meta.env.PUBLIC_MAX_HISTORY_MESSAGES || '99')
+
+  // Models registry
+  type ModelOption = { id: string; label: string; provider: 'openai' | 'gemini'; model: string }
+  const [models, setModels] = createSignal<ModelOption[]>([])
+  const [currentModelId, setCurrentModelId] = createSignal<string | null>(null)
+  const [showModelMenu, setShowModelMenu] = createSignal(false)
 
   createEffect(() => (isStick() && smoothToBottom()))
 
@@ -195,7 +200,7 @@ export default () => {
     }
   }
 
-  onMount(() => {
+  onMount(async() => {
     let lastPostion = window.scrollY
 
     window.addEventListener('scroll', () => {
@@ -212,6 +217,20 @@ export default () => {
 
       lastPostion = nowPostion
     })
+
+    // Load model options
+    try {
+      const resp = await fetch('/api/models')
+      if (resp.ok) {
+        const data = await resp.json()
+        setModels(data.models || [])
+        const saved = localStorage.getItem('currentModelId')
+        const defId = saved || data.defaultModelId || (data.models?.[0]?.id ?? null)
+        setCurrentModelId(defId)
+      }
+    } catch (e) {
+      console.error('Failed to load models:', e)
+    }
 
     // Initialize sessions
     try {
@@ -319,6 +338,7 @@ export default () => {
           messages: convertReqMsgList(requestMessageList),
           time: timestamp,
           pass: storagePassword,
+          modelId: currentModelId(),
           sign: await generateSignature({
             t: timestamp,
             m: requestMessageList?.[requestMessageList.length - 1]?.parts[0]?.text || '',
@@ -395,11 +415,7 @@ export default () => {
   }
 
   const clear = () => {
-    inputRef.value = ''
-    inputRef.style.height = 'auto'
-    setMessageList([])
-    setCurrentAssistantMessage('')
-    setCurrentError(null)
+    // repurposed by model selector
   }
 
   const stopStreamFetch = () => {
@@ -491,9 +507,45 @@ export default () => {
                 <button onClick={handleButtonClick} gen-slate-btn title="Send">
                   <IconSend />
                 </button>
-                <button title="Clear" onClick={clear} gen-slate-btn>
-                  <IconClear />
-                </button>
+                {/* Model picker button */}
+                <div class="relative inline-block">
+                  <button
+                    title="Switch model"
+                    class="gen-slate-btn"
+                    onClick={() => setShowModelMenu(!showModelMenu())}
+                  >
+                    <span class="text-base font-bold select-none">
+                      {(models().find(m => m.id === currentModelId())?.label || 'M').slice(0, 1).toUpperCase()}
+                    </span>
+                  </button>
+                  <Show when={showModelMenu()}>
+                    <div
+                      class="absolute bottom-14 right-0 bg-$c-bg border border-slate/20 rounded-xl shadow-xl min-w-56 overflow-hidden transition-all duration-200 origin-bottom-right transform scale-100 opacity-100"
+                      style={{ "font-family": "var(--font-response)" }}
+                    >
+                      <div class="py-1">
+                        <For each={models()}>
+                          {(m) => (
+                            <button
+                              class={`w-full text-left px-4 py-2 text-sm transition-colors ${m.id === currentModelId() ? 'bg-slate/15 font-medium' : 'hover:bg-slate/10'}`}
+                              onClick={() => {
+                                setCurrentModelId(m.id)
+                                localStorage.setItem('currentModelId', m.id)
+                                setShowModelMenu(false)
+                              }}
+                            >
+                              <span class="inline-block w-6 h-6 mr-2 rounded-full bg-slate/20 fcc text-xs font-bold">
+                                {m.label.slice(0, 1).toUpperCase()}
+                              </span>
+                              <span class="align-middle">{m.label}</span>
+                              <span class="ml-2 text-$c-fg/50 text-xs">{m.provider}:{m.model}</span>
+                            </button>
+                          )}
+                        </For>
+                      </div>
+                    </div>
+                  </Show>
+                </div>
               </div>
             </Show>
           </div>
@@ -528,9 +580,45 @@ export default () => {
             <button onClick={handleButtonClick} gen-slate-btn title="Send">
               <IconSend />
             </button>
-            <button title="Clear" onClick={clear} gen-slate-btn>
-              <IconClear />
-            </button>
+            {/* Model picker button (top area) */}
+            <div class="relative inline-block">
+              <button
+                title="Switch model"
+                class="gen-slate-btn"
+                onClick={() => setShowModelMenu(!showModelMenu())}
+              >
+                <span class="text-base font-bold select-none">
+                  {(models().find(m => m.id === currentModelId())?.label || 'M').slice(0, 1).toUpperCase()}
+                </span>
+              </button>
+              <Show when={showModelMenu()}>
+                <div
+                  class="absolute bottom-14 right-0 bg-$c-bg border border-slate/20 rounded-xl shadow-xl min-w-56 overflow-hidden transition-all duration-200 origin-bottom-right transform scale-100 opacity-100"
+                  style={{ "font-family": "var(--font-response)" }}
+                >
+                  <div class="py-1">
+                    <For each={models()}>
+                      {(m) => (
+                        <button
+                          class={`w-full text-left px-4 py-2 text-sm transition-colors ${m.id === currentModelId() ? 'bg-slate/15 font-medium' : 'hover:bg-slate/10'}`}
+                          onClick={() => {
+                            setCurrentModelId(m.id)
+                            localStorage.setItem('currentModelId', m.id)
+                            setShowModelMenu(false)
+                          }}
+                        >
+                          <span class="inline-block w-6 h-6 mr-2 rounded-full bg-slate/20 fcc text-xs font-bold">
+                            {m.label.slice(0, 1).toUpperCase()}
+                          </span>
+                          <span class="align-middle">{m.label}</span>
+                          <span class="ml-2 text-$c-fg/50 text-xs">{m.provider}:{m.model}</span>
+                        </button>
+                      )}
+                    </For>
+                  </div>
+                </div>
+              </Show>
+            </div>
           </div>
         </Show>
       </Show>

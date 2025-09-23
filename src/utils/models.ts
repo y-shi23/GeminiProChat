@@ -1,4 +1,6 @@
 import type { ChatMessage } from '@/types'
+import { readFileSync } from 'fs'
+import { join } from 'path'
 
 export type Provider = 'openai' | 'gemini'
 
@@ -28,11 +30,53 @@ const readJSON = (val?: string) => {
   }
 }
 
+// Function to read MODELS_JSON from .env file for server-side usage
+const readModelsJsonFromFile = (): string => {
+  // Check if we're running in a server environment (Node.js)
+  if (typeof window === 'undefined' && typeof process !== 'undefined') {
+    try {
+      const envPath = join(process.cwd(), '.env')
+      const envContent = readFileSync(envPath, 'utf8')
+      const lines = envContent.split('\n')
+
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].trim()
+        if (line.startsWith('MODELS_JSON=')) {
+          let value = line.slice('MODELS_JSON='.length).trim()
+
+          // Handle multiline JSON values
+          if (value.startsWith('[') && !value.endsWith(']')) {
+            const valueLines = [value]
+            i++
+            while (i < lines.length) {
+              const nextLine = lines[i]
+              valueLines.push(nextLine)
+              if (nextLine.trim().endsWith(']')) {
+                break
+              }
+              i++
+            }
+            value = valueLines.join('\n').trim()
+          }
+
+          return value
+        }
+      }
+    } catch (error) {
+      // Fall back to process.env if file reading fails
+      return (process.env.MODELS_JSON || '').trim()
+    }
+  }
+
+  // Client-side: use import.meta.env
+  return (import.meta.env.MODELS_JSON || import.meta.env.AI_MODELS || '').trim()
+}
+
 export const loadModelsFromEnv = (): ModelConfig[] => {
   const list: ModelConfig[] = []
 
-  // Prefer unified JSON config for multiple models; we will MERGE with legacy envs if present
-  const json = (import.meta.env.MODELS_JSON || import.meta.env.AI_MODELS || '').trim()
+  // Get MODELS_JSON from appropriate source (file on server, import.meta.env on client)
+  const json = readModelsJsonFromFile()
   const parsed = readJSON(json)
   if (Array.isArray(parsed) && parsed.length) {
     const fromJson: ModelConfig[] = parsed
@@ -50,21 +94,28 @@ export const loadModelsFromEnv = (): ModelConfig[] => {
   }
 
   // Back-compat single provider envs (merge when MODELS_JSON exists)
-  const aiProvider = (import.meta.env.AI_PROVIDER || '').toLowerCase()
+  const getEnvVar = (key: string): string => {
+    if (typeof window === 'undefined' && typeof process !== 'undefined') {
+      return (process.env[key] || '').trim()
+    }
+    return ((import.meta.env as any)[key] || '').trim()
+  }
+
+  const aiProvider = getEnvVar('AI_PROVIDER').toLowerCase()
 
   // OpenAI
-  const openaiKey = (import.meta.env.OPENAI_API_KEY || import.meta.env.OPENAI_APIKEY || '').trim()
-  const openaiModel = (import.meta.env.OPENAI_MODEL_NAME || import.meta.env.OPENAI_MODEL || '').trim()
-  const openaiBase = (import.meta.env.OPENAI_BASE_URL || import.meta.env.OPENAI_API_BASE || import.meta.env.OPENAI_API_HOST || import.meta.env.OPENAI_API_URL || '').trim()
-  const openaiTemp = Number(import.meta.env.OPENAI_TEMPERATURE || 0.7)
+  const openaiKey = getEnvVar('OPENAI_API_KEY') || getEnvVar('OPENAI_APIKEY')
+  const openaiModel = getEnvVar('OPENAI_MODEL_NAME') || getEnvVar('OPENAI_MODEL')
+  const openaiBase = getEnvVar('OPENAI_BASE_URL') || getEnvVar('OPENAI_API_BASE') || getEnvVar('OPENAI_API_HOST') || getEnvVar('OPENAI_API_URL')
+  const openaiTemp = Number(getEnvVar('OPENAI_TEMPERATURE') || 0.7)
   if (openaiKey && openaiModel) {
     list.push({ id: 'openai_env', label: 'OpenAI (ENV)', provider: 'openai', model: openaiModel, baseUrl: openaiBase || undefined, apiKey: openaiKey, temperature: openaiTemp })
   }
 
   // Gemini
-  const geminiKey = (import.meta.env.GEMINI_API_KEY || '').trim()
-  const geminiBase = (import.meta.env.API_BASE_URL || '').trim()
-  const geminiModel = (import.meta.env.GEMINI_MODEL_NAME || 'gemini-2.5-flash').trim()
+  const geminiKey = getEnvVar('GEMINI_API_KEY')
+  const geminiBase = getEnvVar('API_BASE_URL')
+  const geminiModel = getEnvVar('GEMINI_MODEL_NAME') || 'gemini-2.5-flash'
   if (geminiKey) {
     list.push({ id: 'gemini_env', label: 'Gemini (ENV)', provider: 'gemini', model: geminiModel, baseUrl: geminiBase || undefined, apiKey: geminiKey })
   }
@@ -77,14 +128,22 @@ export const publicModels = (configs: ModelConfig[]): PublicModelOption[] =>
 
 export const pickDefaultModelId = (configs: ModelConfig[]): string | null => {
   if (!configs.length) return null
-  const providerPref = (import.meta.env.AI_PROVIDER || '').toLowerCase()
+
+  const getEnvVar = (key: string): string => {
+    if (typeof window === 'undefined' && typeof process !== 'undefined') {
+      return (process.env[key] || '').trim()
+    }
+    return ((import.meta.env as any)[key] || '').trim()
+  }
+
+  const providerPref = getEnvVar('AI_PROVIDER').toLowerCase()
   // If AI_PROVIDER is set, pick first model matching provider
   if (providerPref === 'openai' || providerPref === 'gemini') {
     const found = configs.find(m => m.provider === providerPref)
     if (found) return found.id
   }
   // Optional explicit default
-  const explicit = (import.meta.env.DEFAULT_MODEL_ID || '').trim()
+  const explicit = getEnvVar('DEFAULT_MODEL_ID')
   if (explicit) {
     const match = configs.find(m => m.id === explicit)
     if (match) return match.id
