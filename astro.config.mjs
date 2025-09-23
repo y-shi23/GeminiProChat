@@ -8,10 +8,13 @@ import vercel from '@astrojs/vercel/edge'
 import netlify from '@astrojs/netlify/edge-functions'
 import disableBlocks from './plugins/disableBlocks'
 
+const isCFPages = !!process.env.CF_PAGES || ['cloudflare', 'cloudflare-pages', 'cf', 'pages'].includes((process.env.OUTPUT || '').toLowerCase())
+
 const envAdapter = () => {
-  switch (process.env.OUTPUT) {
+  switch ((process.env.OUTPUT || '').toLowerCase()) {
     case 'vercel': return vercel()
     case 'netlify': return netlify()
+    // For Cloudflare Pages we will emit a static site and handle APIs via Pages Functions
     default: return node({ mode: 'standalone' })
   }
 }
@@ -58,8 +61,9 @@ export default defineConfig({
       },
     }),
   ],
-  output: 'server',
-  adapter: envAdapter(),
+  // On Cloudflare Pages we serve a static site and handle APIs via Pages Functions
+  output: isCFPages ? 'static' : 'server',
+  adapter: isCFPages ? undefined : envAdapter(),
   vite: {
     plugins: [
       process.env.OUTPUT === 'vercel' && disableBlocks(),
