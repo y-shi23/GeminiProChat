@@ -70,6 +70,43 @@ const readModelsJsonFromFile = (): string => {
   return (import.meta.env.MODELS_JSON || import.meta.env.AI_MODELS || '').trim()
 }
 
+// Function to create a clean display name from model info
+const createDisplayName = (m: any): string => {
+  // If label exists, use it
+  if (m.label && m.label.trim()) {
+    return String(m.label).trim()
+  }
+
+  // If id exists and looks like a display name, use it
+  if (m.id && m.id.trim()) {
+    const id = String(m.id).trim()
+    // If id contains spaces or mixed case, it's likely a display name
+    if (id.includes(' ') || (id !== id.toLowerCase() && id !== id.toUpperCase())) {
+      return id
+    }
+    // Convert kebab-case or snake_case to title case
+    if (id.includes('-') || id.includes('_')) {
+      return id
+        .split(/[-_]/)
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+        .join(' ')
+    }
+  }
+
+  // Use model name as fallback, cleaned up
+  if (m.model && m.model.trim()) {
+    const model = String(m.model).trim()
+    // Remove common prefixes and clean up
+    const cleaned = model
+      .replace(/^(gpt-|claude-|gemini-)/i, '')
+      .replace(/[-_]/g, ' ')
+    return cleaned.charAt(0).toUpperCase() + cleaned.slice(1)
+  }
+
+  // Final fallback
+  return `${m.provider}:${m.model}`
+}
+
 export const loadModelsFromEnv = (): ModelConfig[] => {
   const list: ModelConfig[] = []
 
@@ -79,7 +116,7 @@ export const loadModelsFromEnv = (): ModelConfig[] => {
   if (Array.isArray(parsed) && parsed.length) {
     const fromJson: ModelConfig[] = parsed
       .map((m: any) => ({
-        id: String(m.label || m.id || `${m.provider}:${m.model}`),
+        id: createDisplayName(m),
         provider: (String(m.provider || '').toLowerCase() as Provider),
         model: String(m.model || ''),
         baseUrl: m.baseUrl ? String(m.baseUrl) : undefined,
