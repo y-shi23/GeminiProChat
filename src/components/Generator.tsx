@@ -1,27 +1,199 @@
-import { Index, Show, createEffect, createSignal, onCleanup, onMount } from 'solid-js'
+import { Index, Show, createEffect, createSignal, onCleanup, onMount, batch } from 'solid-js'
 import { useThrottleFn } from 'solidjs-use'
 import { generateSignature } from '@/utils/auth'
+import {
+  loadSessions,
+  saveSessions,
+  createNewSession,
+  updateSession,
+  deleteSession,
+  generateSessionTitle,
+  migrateLegacyData
+} from '@/utils/sessions'
 import IconClear from './icons/Clear'
 import IconSend from './icons/Send'
 import IconX from './icons/X'
-// import Picture from './icons/Picture'
 import MessageItem from './MessageItem'
 import ErrorMessageItem from './ErrorMessageItem'
-import type { ChatMessage, ErrorMessage } from '@/types'
+import Sidebar from './Sidebar'
+import type { ChatMessage, ErrorMessage, ChatSession } from '@/types'
 
 export default () => {
   let inputRef: HTMLTextAreaElement
+
+  // Session management
+  const [sessions, setSessions] = createSignal<ChatSession[]>([])
+  const [currentSessionId, setCurrentSessionId] = createSignal<string | null>(null)
+
+  // Current session state
   const [messageList, setMessageList] = createSignal<ChatMessage[]>([])
   const [currentError, setCurrentError] = createSignal<ErrorMessage>()
   const [currentAssistantMessage, setCurrentAssistantMessage] = createSignal('')
   const [loading, setLoading] = createSignal(false)
   const [controller, setController] = createSignal<AbortController>(null)
+
   // Auto-scroll to bottom when streaming; disables when user scrolls up
   const [isStick, setStick] = createSignal(true)
-  // const [showComingSoon, setShowComingSoon] = createSignal(false)
   const maxHistoryMessages = parseInt(import.meta.env.PUBLIC_MAX_HISTORY_MESSAGES || '99')
 
   createEffect(() => (isStick() && smoothToBottom()))
+
+  // Get current session
+  const getCurrentSession = (): ChatSession | null => {
+    const sessionId = currentSessionId()
+    return sessionId ? sessions().find(s => s.id === sessionId) || null : null
+  }
+
+  // Save current session
+  const saveCurrentSession = () => {
+    const sessionId = currentSessionId()
+    if (!sessionId) return
+
+    const currentMessages = messageList()
+    const title = generateSessionTitle(currentMessages)
+
+    const updatedSessions = updateSession(sessions(), sessionId, {
+      messages: currentMessages,
+      title
+    })
+
+    setSessions(updatedSessions)
+    saveSessions(updatedSessions)
+  }
+
+  // Switch to a session
+  const switchToSession = (sessionId: string) => {
+    console.log('switchToSession called with:', sessionId)
+
+    // Save current session before switching (but don't update sessions state yet)
+    let currentSessions = sessions()
+    if (currentSessionId()) {
+      const currentMessages = messageList()
+      const title = generateSessionTitle(currentMessages)
+
+      currentSessions = updateSession(currentSessions, currentSessionId()!, {
+        messages: currentMessages,
+        title
+      })
+    }
+
+    const session = currentSessions.find(s => s.id === sessionId)
+    console.log('Found session:', session)
+
+    if (session) {
+      console.log('Session messages:', session.messages)
+
+      // Use batch to ensure all state updates happen atomically
+      batch(() => {
+        // Update sessions state after we've found the target session
+        setSessions(currentSessions)
+
+        // Clear current state first
+        setCurrentError(null)
+        setCurrentAssistantMessage('')
+        setLoading(false)
+
+        // Clear any ongoing requests
+        if (controller()) {
+          controller().abort()
+          setController(null)
+        }
+
+        // Set new session data
+        setCurrentSessionId(sessionId)
+
+        // Force a completely new array to ensure reactivity
+        const newMessages = session.messages.map(msg => ({...msg}))
+        setMessageList(newMessages)
+        setStick(true)
+
+        console.log('Batch update completed - Message list:', newMessages)
+        console.log('Batch update completed - Session ID:', sessionId)
+      })
+
+      // Save to localStorage after state updates
+      saveSessions(currentSessions)
+
+      // Delayed verification
+      setTimeout(() => {
+        console.log('Delayed check - messageList():', messageList())
+        console.log('Delayed check - currentSessionId():', currentSessionId())
+      }, 100)
+    } else {
+      console.error('Session not found:', sessionId)
+    }
+  }
+
+  // Create new session
+  const createSession = () => {
+    // Save current session first (but don't update state yet)
+    let currentSessions = sessions()
+    if (currentSessionId()) {
+      const currentMessages = messageList()
+      const title = generateSessionTitle(currentMessages)
+
+      currentSessions = updateSession(currentSessions, currentSessionId()!, {
+        messages: currentMessages,
+        title
+      })
+    }
+
+    const newSession = createNewSession()
+    const updatedSessions = [newSession, ...currentSessions]
+
+    // Use batch for atomic state updates
+    batch(() => {
+      setSessions(updatedSessions)
+
+      // Switch to new session
+      setCurrentSessionId(newSession.id)
+      setMessageList([])
+      setCurrentError(null)
+      setCurrentAssistantMessage('')
+      setStick(true)
+    })
+
+    saveSessions(updatedSessions)
+
+    // Focus input
+    setTimeout(() => {
+      if (inputRef && !('ontouchstart' in document.documentElement || navigator.maxTouchPoints > 0)) {
+        inputRef.focus()
+      }
+    }, 100)
+  }
+
+  // Delete session
+  const handleDeleteSession = (sessionId: string) => {
+    const updatedSessions = deleteSession(sessions(), sessionId)
+
+    // Use batch for atomic updates
+    batch(() => {
+      setSessions(updatedSessions)
+
+      // If deleting current session, switch to another or create new
+      if (sessionId === currentSessionId()) {
+        if (updatedSessions.length > 0) {
+          // Don't call switchToSession here as it will try to save the current session again
+          const firstSession = updatedSessions[0]
+          setCurrentSessionId(firstSession.id)
+          setMessageList([...firstSession.messages])
+          setCurrentError(null)
+          setCurrentAssistantMessage('')
+          setStick(true)
+        } else {
+          // Will create new session outside batch
+        }
+      }
+    })
+
+    saveSessions(updatedSessions)
+
+    // Create new session if no sessions left (outside batch to avoid conflicts)
+    if (sessionId === currentSessionId() && updatedSessions.length === 0) {
+      createSession()
+    }
+  }
 
   onMount(() => {
     let lastPostion = window.scrollY
@@ -41,14 +213,31 @@ export default () => {
       lastPostion = nowPostion
     })
 
+    // Initialize sessions
     try {
-      if (localStorage.getItem('messageList'))
-        setMessageList(JSON.parse(localStorage.getItem('messageList')))
+      let loadedSessions = loadSessions()
+
+      // Check for legacy data migration
+      const legacySession = migrateLegacyData()
+      if (legacySession) {
+        loadedSessions = [legacySession, ...loadedSessions]
+        saveSessions(loadedSessions)
+      }
+
+      if (loadedSessions.length > 0) {
+        setSessions(loadedSessions)
+        switchToSession(loadedSessions[0].id)
+      } else {
+        // Create first session
+        createSession()
+      }
 
       if (localStorage.getItem('stickToBottom') === 'stick')
         setStick(true)
     } catch (err) {
-      console.error(err)
+      console.error('Error during initialization:', err)
+      // Fallback: create new session
+      createSession()
     }
 
     window.addEventListener('beforeunload', handleBeforeUnload)
@@ -58,7 +247,10 @@ export default () => {
   })
 
   const handleBeforeUnload = () => {
-    localStorage.setItem('messageList', JSON.stringify(messageList()))
+    // Save current session before unload
+    if (currentSessionId()) {
+      saveCurrentSession()
+    }
     isStick() ? localStorage.setItem('stickToBottom', 'stick') : localStorage.removeItem('stickToBottom')
   }
 
@@ -68,13 +260,17 @@ export default () => {
       return
 
     inputRef.value = ''
-    setMessageList(prev => ([
-      ...prev,
-      {
-        role: 'user',
-        content: inputValue,
-      },
-    ]))
+
+    const newMessage: ChatMessage = {
+      role: 'user',
+      parts: [{ text: inputValue }],
+    }
+
+    const updatedMessages = [...messageList(), newMessage]
+    setMessageList(updatedMessages)
+    // Persist session title and messages promptly for correctness
+    saveCurrentSession()
+
     // Enable stick when user sends a message to ensure they see the response
     setStick(true)
     requestWithLatestMessage()
@@ -103,6 +299,7 @@ export default () => {
       return !nextMsg || curMsg.role !== nextMsg.role
     })
   }
+
   const requestWithLatestMessage = async() => {
     setLoading(true)
     setCurrentAssistantMessage('')
@@ -112,8 +309,8 @@ export default () => {
       const controller = new AbortController()
       setController(controller)
       const requestMessageList = messageList().map(message => ({
-        role: message.role === 'assistant' ? 'model' : 'user',
-        parts: [{ text: message.content }],
+        role: message.role === 'user' ? 'user' : 'model',
+        parts: message.parts,
       })).slice(-maxHistoryMessages)
       const timestamp = Date.now()
       const response = await fetch('/api/generate', {
@@ -151,8 +348,7 @@ export default () => {
             continue
 
           if (char) {
-            // Functional update prevents lost chunks on rapid updates
-            setCurrentAssistantMessage(prev => prev + char)
+            setCurrentAssistantMessage(currentAssistantMessage() + char)
             // Smoothly follow the stream when stick is enabled - more responsive
             if (isStick()) smoothToBottom()
           }
@@ -160,7 +356,7 @@ export default () => {
         done = readerDone
       }
       if (done)
-        setCurrentAssistantMessage(prev => prev + decoder.decode())
+        setCurrentAssistantMessage(currentAssistantMessage() + decoder.decode())
     } catch (e) {
       console.error(e)
       setLoading(false)
@@ -173,20 +369,25 @@ export default () => {
 
   const archiveCurrentMessage = () => {
     if (currentAssistantMessage()) {
-      setMessageList(prev => ([
-        ...prev,
-        {
-          role: 'assistant',
-          content: currentAssistantMessage(),
-        },
-      ]))
+      const assistantMessage: ChatMessage = {
+        role: 'model',
+        parts: [{ text: currentAssistantMessage() }],
+      }
+
+      const updatedMessages = [...messageList(), assistantMessage]
+      setMessageList(updatedMessages)
       setCurrentAssistantMessage('')
       setLoading(false)
       setController(null)
+
+      // Persist to sessions so refresh reflects latest state
+      saveCurrentSession()
+
       // Ensure we scroll to bottom when message is complete
       if (isStick()) {
         setTimeout(() => smoothToBottom(), 50)
       }
+
       // Disable auto-focus on touch devices
       if (!('ontouchstart' in document.documentElement || navigator.maxTouchPoints > 0))
         inputRef.focus()
@@ -211,7 +412,7 @@ export default () => {
   const retryLastFetch = () => {
     if (messageList().length > 0) {
       const lastMessage = messageList()[messageList().length - 1]
-      if (lastMessage.role === 'assistant')
+      if (lastMessage.role === 'model')
         setMessageList(messageList().slice(0, -1))
       requestWithLatestMessage()
     }
@@ -227,34 +428,24 @@ export default () => {
     }
   }
 
-  // const handlePictureUpload = () => {
-  //   // coming soon
-  //   setShowComingSoon(true)
-  // }
-
   return (
     <div my-6>
-      {/* beautiful coming soon alert box, position: fixed, screen center, no transparent background, z-index 100
-      <Show when={showComingSoon()}>
-        <div class="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-100">
-          <div class="bg-white rounded-md shadow-md p-6">
-            <div class="flex items-center justify-between">
-              <h3 class="text-lg font-medium">Coming soon</h3>
-              <button onClick={() => setShowComingSoon(false)}>
-                <IconX />
-              </button>
-            </div>
-            <p class="text-gray-500 mt-2">Chat with picture is coming soon!</p>
-          </div>
-        </div>
-      </Show> */}
+      {/* Sidebar */}
+      <Sidebar
+        sessions={sessions()}
+        currentSessionId={currentSessionId()}
+        onSessionSelect={switchToSession}
+        onSessionDelete={handleDeleteSession}
+        onNewSession={createSession}
+      />
 
       <Index each={messageList()}>
         {(message, index) => (
           <MessageItem
-            role={message().role}
-            message={message().content}
-            showRetry={() => (message().role === 'assistant' && index === messageList().length - 1)}
+            role={message().role === 'model' ? 'assistant' : 'user'}
+            // Pass accessor to keep reactivity when switching sessions or updating messages
+            message={() => message().parts.map(p => p.text).join('')}
+            showRetry={() => (message().role === 'model' && index === messageList().length - 1)}
             onRetry={retryLastFetch}
           />
         )}
@@ -266,6 +457,7 @@ export default () => {
         />
       )}
       {currentError() && <ErrorMessageItem data={currentError()} onRetry={retryLastFetch} />}
+
       {/* Fixed input area at bottom when messages exist */}
       <Show when={messageList().length > 0}>
         {/* Background fill between input and footer */}
@@ -283,9 +475,6 @@ export default () => {
               )}
             >
               <div class="gen-text-wrapper relative">
-                {/* <button title="Picture" onClick={handlePictureUpload} class="absolute left-1rem top-50% translate-y-[-50%]">
-                  <Picture />
-                </button> */}
                 <textarea
                   ref={inputRef!}
                   onKeyDown={handleKeydown}
@@ -323,9 +512,6 @@ export default () => {
           )}
         >
           <div class="gen-text-wrapper relative">
-            {/* <button title="Picture" onClick={handlePictureUpload} class="absolute left-1rem top-50% translate-y-[-50%]">
-              <Picture />
-            </button> */}
             <textarea
               ref={inputRef!}
               onKeyDown={handleKeydown}
@@ -348,13 +534,6 @@ export default () => {
           </div>
         </Show>
       </Show>
-      {/* <div class="fixed bottom-5 left-5 rounded-md hover:bg-slate/10 w-fit h-fit transition-colors active:scale-90" class:stick-btn-on={isStick()}>
-        <div>
-          <button class="p-2.5 text-base" title="stick to bottom" type="button" onClick={() => setStick(!isStick())}>
-            <div i-ph-arrow-line-down-bold />
-          </button>
-        </div>
-      </div> */}
     </div>
   )
 }
