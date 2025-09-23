@@ -81,8 +81,21 @@ async function streamFromOpenAI(history: ChatMessage[], newMessage: string) {
         }
         try {
           const json = JSON.parse(data)
-          const delta = json?.choices?.[0]?.delta?.content
-          if (delta) controller.enqueue(encoder.encode(delta))
+          const choice = json?.choices?.[0]
+          const delta = choice?.delta
+          let text = ''
+          // OpenAI Chat Completions: delta.content is a string
+          if (typeof delta?.content === 'string') text = delta.content
+          // Some OpenAI-compatible providers stream content as array parts
+          else if (Array.isArray(delta?.content)) {
+            text = delta.content.map((p: any) => p?.text || p?.content || '').join('')
+          }
+          // Fallbacks for non-standard streams
+          else if (typeof (choice as any)?.text === 'string') {
+            text = (choice as any).text
+          }
+
+          if (text) controller.enqueue(encoder.encode(text))
         } catch (e) {
           // ignore
         }

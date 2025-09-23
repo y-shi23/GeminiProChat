@@ -33,7 +33,8 @@ export default () => {
         setStick(false)
 
       // If user scrolls down and is near bottom, re-enable stick
-      const nearBottom = (window.innerHeight + window.scrollY) >= (document.body.scrollHeight - 120)
+      // More precise bottom detection
+      const nearBottom = (window.innerHeight + window.scrollY) >= (document.body.scrollHeight - 50)
       if (nowPostion >= lastPostion && nearBottom)
         setStick(true)
 
@@ -67,13 +68,15 @@ export default () => {
       return
 
     inputRef.value = ''
-    setMessageList([
-      ...messageList(),
+    setMessageList(prev => ([
+      ...prev,
       {
         role: 'user',
         content: inputValue,
       },
-    ])
+    ]))
+    // Enable stick when user sends a message to ensure they see the response
+    setStick(true)
     requestWithLatestMessage()
     // Ensure we start at the bottom when sending
     smoothToBottom()
@@ -81,7 +84,7 @@ export default () => {
 
   const smoothToBottom = useThrottleFn(() => {
     window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' })
-  }, 300, false, true)
+  }, 100, false, true)
 
   const instantToBottom = () => {
     // Use standard behavior value 'auto' for immediate jump
@@ -147,16 +150,17 @@ export default () => {
           if (char === '\n' && currentAssistantMessage().endsWith('\n'))
             continue
 
-          if (char)
-            setCurrentAssistantMessage(currentAssistantMessage() + char)
-
-          // Smoothly follow the stream when stick is enabled
-          if (isStick()) smoothToBottom()
+          if (char) {
+            // Functional update prevents lost chunks on rapid updates
+            setCurrentAssistantMessage(prev => prev + char)
+            // Smoothly follow the stream when stick is enabled - more responsive
+            if (isStick()) smoothToBottom()
+          }
         }
         done = readerDone
       }
       if (done)
-        setCurrentAssistantMessage(currentAssistantMessage() + decoder.decode())
+        setCurrentAssistantMessage(prev => prev + decoder.decode())
     } catch (e) {
       console.error(e)
       setLoading(false)
@@ -169,16 +173,20 @@ export default () => {
 
   const archiveCurrentMessage = () => {
     if (currentAssistantMessage()) {
-      setMessageList([
-        ...messageList(),
+      setMessageList(prev => ([
+        ...prev,
         {
           role: 'assistant',
           content: currentAssistantMessage(),
         },
-      ])
+      ]))
       setCurrentAssistantMessage('')
       setLoading(false)
       setController(null)
+      // Ensure we scroll to bottom when message is complete
+      if (isStick()) {
+        setTimeout(() => smoothToBottom(), 50)
+      }
       // Disable auto-focus on touch devices
       if (!('ontouchstart' in document.documentElement || navigator.maxTouchPoints > 0))
         inputRef.focus()

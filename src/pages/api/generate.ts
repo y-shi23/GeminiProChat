@@ -40,7 +40,17 @@ export const post: APIRoute = async(context) => {
     // Start chat and send message with streaming
     const responseStream = await startChatAndSendMessageStream(history, newMessage)
 
-    return new Response(responseStream, { status: 200, headers: { 'Content-Type': 'text/plain; charset=utf-8' } })
+    return new Response(responseStream, {
+      status: 200,
+      headers: {
+        'Content-Type': 'text/plain; charset=utf-8',
+        // Improve streaming reliability across proxies/CDNs
+        'Cache-Control': 'no-cache, no-transform',
+        'Connection': 'keep-alive',
+        // Disable buffering on Nginx-compatible proxies
+        'X-Accel-Buffering': 'no',
+      },
+    })
   } catch (error) {
     console.error(error)
     const errorMessage = error.message
