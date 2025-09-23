@@ -36,7 +36,7 @@ export default () => {
   const maxHistoryMessages = parseInt(import.meta.env.PUBLIC_MAX_HISTORY_MESSAGES || '99')
 
   // Models registry
-  type ModelOption = { id: string; label: string; provider: 'openai' | 'gemini'; model: string }
+  type ModelOption = { id: string; provider: 'openai' | 'gemini'; model: string }
   const [models, setModels] = createSignal<ModelOption[]>([])
   const [currentModelId, setCurrentModelId] = createSignal<string | null>(null)
   const [showModelMenu, setShowModelMenu] = createSignal(false)
@@ -537,9 +537,9 @@ export default () => {
                                 }}
                               >
                                 <span class="flex items-center justify-center w-6 h-6 mr-2 rounded-full bg-slate/20 text-xs font-bold">
-                                  {m.label.slice(0, 1).toUpperCase()}
+                                  {m.id.slice(0, 1).toUpperCase()}
                                 </span>
-                                <span class="flex-1">{m.label}</span>
+                                <span class="flex-1">{m.id}</span>
                               </button>
                             )}
                           </For>
@@ -590,7 +590,7 @@ export default () => {
                 onClick={() => setShowModelMenu(!showModelMenu())}
               >
                 <span class="text-base font-bold select-none">
-                  {(models().find(m => m.id === currentModelId())?.label || 'M').slice(0, 1).toUpperCase()}
+                  {(models().find(m => m.id === currentModelId())?.id || 'M').slice(0, 1).toUpperCase()}
                 </span>
               </button>
               <Show when={showModelMenu()}>
@@ -612,9 +612,9 @@ export default () => {
                           }}
                           >
                             <span class="flex items-center justify-center w-6 h-6 mr-2 rounded-full bg-slate/20 text-xs font-bold">
-                              {m.label.slice(0, 1).toUpperCase()}
+                              {m.id.slice(0, 1).toUpperCase()}
                             </span>
-                            <span class="flex-1">{m.label}</span>
+                            <span class="flex-1">{m.id}</span>
                           </button>
                         )}
                       </For>

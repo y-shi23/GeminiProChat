@@ -6,7 +6,6 @@ export type Provider = 'openai' | 'gemini'
 
 export interface ModelConfig {
   id: string
-  label?: string
   provider: Provider
   model: string
   baseUrl?: string
@@ -16,7 +15,6 @@ export interface ModelConfig {
 
 export interface PublicModelOption {
   id: string
-  label: string
   provider: Provider
   model: string
 }
@@ -80,9 +78,8 @@ export const loadModelsFromEnv = (): ModelConfig[] => {
   const parsed = readJSON(json)
   if (Array.isArray(parsed) && parsed.length) {
     const fromJson: ModelConfig[] = parsed
-      .map((m: any, i: number) => ({
-        id: String(m.id || `model_${i + 1}`),
-        label: String(m.label || `${m.provider}:${m.model}`),
+      .map((m: any) => ({
+        id: String(m.label || m.id || `${m.provider}:${m.model}`),
         provider: (String(m.provider || '').toLowerCase() as Provider),
         model: String(m.model || ''),
         baseUrl: m.baseUrl ? String(m.baseUrl) : undefined,
@@ -109,7 +106,7 @@ export const loadModelsFromEnv = (): ModelConfig[] => {
   const openaiBase = getEnvVar('OPENAI_BASE_URL') || getEnvVar('OPENAI_API_BASE') || getEnvVar('OPENAI_API_HOST') || getEnvVar('OPENAI_API_URL')
   const openaiTemp = Number(getEnvVar('OPENAI_TEMPERATURE') || 0.7)
   if (openaiKey && openaiModel) {
-    list.push({ id: 'openai_env', label: 'OpenAI (ENV)', provider: 'openai', model: openaiModel, baseUrl: openaiBase || undefined, apiKey: openaiKey, temperature: openaiTemp })
+    list.push({ id: 'OpenAI (ENV)', provider: 'openai', model: openaiModel, baseUrl: openaiBase || undefined, apiKey: openaiKey, temperature: openaiTemp })
   }
 
   // Gemini
@@ -117,14 +114,14 @@ export const loadModelsFromEnv = (): ModelConfig[] => {
   const geminiBase = getEnvVar('API_BASE_URL')
   const geminiModel = getEnvVar('GEMINI_MODEL_NAME') || 'gemini-2.5-flash'
   if (geminiKey) {
-    list.push({ id: 'gemini_env', label: 'Gemini (ENV)', provider: 'gemini', model: geminiModel, baseUrl: geminiBase || undefined, apiKey: geminiKey })
+    list.push({ id: 'Gemini (ENV)', provider: 'gemini', model: geminiModel, baseUrl: geminiBase || undefined, apiKey: geminiKey })
   }
 
   return list
 }
 
 export const publicModels = (configs: ModelConfig[]): PublicModelOption[] =>
-  configs.map(m => ({ id: m.id, label: m.label, provider: m.provider, model: m.model }))
+  configs.map(m => ({ id: m.id, provider: m.provider, model: m.model }))
 
 export const pickDefaultModelId = (configs: ModelConfig[]): string | null => {
   if (!configs.length) return null

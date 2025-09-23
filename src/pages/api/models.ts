@@ -80,9 +80,8 @@ const loadModelsFromEnv = (): ModelConfig[] => {
   const parsed = readJSON(json)
   if (Array.isArray(parsed) && parsed.length) {
     const fromJson: ModelConfig[] = parsed
-      .map((m: any, i: number) => ({
-        id: String(m.id || `model_${i + 1}`),
-        label: String(m.label || `${m.provider}:${m.model}`),
+      .map((m: any) => ({
+        id: String(m.label || m.id || `${m.provider}:${m.model}`),
         provider: (String(m.provider || '').toLowerCase() as 'openai' | 'gemini'),
         model: String(m.model || ''),
         baseUrl: m.baseUrl ? String(m.baseUrl) : undefined,
@@ -100,7 +99,7 @@ const loadModelsFromEnv = (): ModelConfig[] => {
   const openaiTemp = Number(getEnvVar('OPENAI_TEMPERATURE') || 0.7)
 
   if (openaiKey && openaiModel) {
-    list.push({ id: 'openai_env', label: 'OpenAI (ENV)', provider: 'openai', model: openaiModel, baseUrl: openaiBase || undefined, apiKey: openaiKey, temperature: openaiTemp })
+    list.push({ id: 'OpenAI (ENV)', provider: 'openai', model: openaiModel, baseUrl: openaiBase || undefined, apiKey: openaiKey, temperature: openaiTemp })
   }
 
   // Gemini
@@ -108,14 +107,14 @@ const loadModelsFromEnv = (): ModelConfig[] => {
   const geminiBase = getEnvVar('API_BASE_URL').trim()
   const geminiModel = (getEnvVar('GEMINI_MODEL_NAME') || 'gemini-2.5-flash').trim()
   if (geminiKey) {
-    list.push({ id: 'gemini_env', label: 'Gemini (ENV)', provider: 'gemini', model: geminiModel, baseUrl: geminiBase || undefined, apiKey: geminiKey })
+    list.push({ id: 'Gemini (ENV)', provider: 'gemini', model: geminiModel, baseUrl: geminiBase || undefined, apiKey: geminiKey })
   }
 
   return list
 }
 
 const publicModels = (configs: ModelConfig[]) =>
-  configs.map(m => ({ id: m.id, label: m.label, provider: m.provider, model: m.model }))
+  configs.map(m => ({ id: m.id, provider: m.provider, model: m.model }))
 
 const pickDefaultModelId = (configs: ModelConfig[]): string | null => {
   if (!configs.length) return null
