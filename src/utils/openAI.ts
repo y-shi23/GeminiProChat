@@ -1,5 +1,6 @@
 import { GoogleGenerativeAI } from '@fuyun/generative-ai'
 import { createParser } from 'eventsource-parser'
+import { getModelById, loadModelsFromEnv } from './models'
 
 // Gemini config
 const geminiApiKey = (import.meta.env.GEMINI_API_KEY)
@@ -13,8 +14,8 @@ const openaiBaseEnv = (import.meta.env.OPENAI_BASE_URL || import.meta.env.OPENAI
 const openaiModelName = (import.meta.env.OPENAI_MODEL_NAME || import.meta.env.OPENAI_MODEL || 'gpt-4o-mini')
 const openaiTemperature = Number(import.meta.env.OPENAI_TEMPERATURE || 0.7)
 
-const resolveOpenAIBase = () => {
-  const base = openaiBaseEnv || 'https://api.openai.com'
+const normalizeOpenAIBase = (baseIn?: string) => {
+  const base = (baseIn || openaiBaseEnv || 'https://api.openai.com')
   const trimmed = base.replace(/\/$/, '')
   return trimmed.match(/\/(v1|v\d+)$/) ? trimmed : `${trimmed}/v1`
 }
@@ -31,8 +32,9 @@ const genAI = geminiApiBaseUrl
   ? new GoogleGenerativeAI(geminiApiKey, geminiApiBaseUrl)
   : new GoogleGenerativeAI(geminiApiKey)
 
-async function streamFromOpenAI(history: ChatMessage[], newMessage: string) {
-  if (!openaiApiKey)
+async function streamFromOpenAI(history: ChatMessage[], newMessage: string, opts?: { baseUrl?: string; apiKey?: string; model?: string; temperature?: number }) {
+  const effectiveKey = (opts?.apiKey || openaiApiKey)
+  if (!effectiveKey)
     throw new Error('OPENAI_API_KEY is required for OpenAI provider')
 
   const messages = [
@@ -43,7 +45,8 @@ async function streamFromOpenAI(history: ChatMessage[], newMessage: string) {
     { role: 'user', content: newMessage },
   ]
 
-  const url = `${resolveOpenAIBase()}/chat/completions`
+  const base = normalizeOpenAIBase(opts?.baseUrl?.trim())
+  const url = `${base}/chat/completions`
 
   const res = await fetch(url, {
     method: 'POST',
@@ -52,9 +55,9 @@ async function streamFromOpenAI(history: ChatMessage[], newMessage: string) {
       Authorization: `Bearer ${openaiApiKey}`,
     },
     body: JSON.stringify({
-      model: openaiModelName,
+      model: opts?.model || openaiModelName,
       messages,
-      temperature: openaiTemperature,
+      temperature: opts?.temperature ?? openaiTemperature,
       stream: true,
     }),
   })
@@ -121,8 +124,16 @@ async function streamFromOpenAI(history: ChatMessage[], newMessage: string) {
   return stream
 }
 
-async function streamFromGemini(history: ChatMessage[], newMessage: string) {
-  const model = genAI.getGenerativeModel({ model: geminiModelName })
+async function streamFromGemini(history: ChatMessage[], newMessage: string, opts?: { baseUrl?: string; apiKey?: string; model?: string }) {
+  const apiKey = opts?.apiKey || geminiApiKey
+  const baseUrl = (opts?.baseUrl && opts.baseUrl.trim()) || geminiApiBaseUrl
+  const modelName = opts?.model || geminiModelName
+
+  const client = baseUrl
+    ? new GoogleGenerativeAI(apiKey, baseUrl)
+    : new GoogleGenerativeAI(apiKey)
+
+  const model = client.getGenerativeModel({ model: modelName })
 
   const chat = model.startChat({
     history: history.map(msg => ({
@@ -157,7 +168,23 @@ async function streamFromGemini(history: ChatMessage[], newMessage: string) {
   return encodedStream
 }
 
-export const startChatAndSendMessageStream = async(history: ChatMessage[], newMessage: string) => {
+export const startChatAndSendMessageStream = async(
+  history: ChatMessage[],
+  newMessage: string,
+  modelId?: string | null,
+) => {
+  // If a specific modelId is provided, select from registry
+  const registry = loadModelsFromEnv()
+  if (registry.length && modelId) {
+    const m = getModelById(registry, modelId)
+    if (!m)
+      throw new Error('Invalid modelId')
+    if (m.provider === 'openai')
+      return await streamFromOpenAI(history, newMessage, { baseUrl: m.baseUrl, apiKey: m.apiKey, model: m.model, temperature: m.temperature })
+    return await streamFromGemini(history, newMessage, { baseUrl: m.baseUrl, apiKey: m.apiKey, model: m.model })
+  }
+
+  // Fallback to legacy env-driven provider
   const provider = detectProvider()
   if (provider === 'openai')
     return await streamFromOpenAI(history, newMessage)
