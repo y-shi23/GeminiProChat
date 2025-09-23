@@ -70,6 +70,7 @@ export default (props: SidebarProps) => {
         class={`fixed left-4 top-4 bottom-4 w-80 bg-$c-bg rounded-xl shadow-2xl z-50 transform transition-transform duration-300 ease-out ${
           isVisible() ? 'translate-x-0' : '-translate-x-full'
         }`}
+        style={{ "font-family": "var(--font-response)" }}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={hideSidebar}
       >

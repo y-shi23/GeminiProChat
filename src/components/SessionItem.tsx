@@ -50,6 +50,7 @@ export default (props: SessionItemProps) => {
           ? 'bg-slate/20 border border-slate/30'
           : 'hover:bg-slate/10'
       }`}
+      style={{ "font-family": "var(--font-response)" }}
       onClick={handleSessionClick}
       onMouseEnter={() => setHovering(true)}
       onMouseLeave={() => {
