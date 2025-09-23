@@ -1,6 +1,6 @@
 import { GoogleGenerativeAI } from '@fuyun/generative-ai'
 import { createParser } from 'eventsource-parser'
-import { getModelById, loadModelsFromEnv } from './models'
+import { getModelById, loadModelsFromEnv, pickDefaultModelId } from './models'
 
 // Gemini config
 const geminiApiKey = (import.meta.env.GEMINI_API_KEY)
@@ -8,7 +8,6 @@ const geminiApiBaseUrl = (import.meta.env.API_BASE_URL)?.trim().replace(/\/$/, '
 const geminiModelName = (import.meta.env.GEMINI_MODEL_NAME) || 'gemini-2.5-flash'
 
 // OpenAI-format config
-const providerFromEnv = (import.meta.env.AI_PROVIDER || import.meta.env.MODEL_PROVIDER || '').toLowerCase()
 const openaiApiKey = (import.meta.env.OPENAI_API_KEY || import.meta.env.OPENAI_APIKEY || '')
 const openaiBaseEnv = (import.meta.env.OPENAI_BASE_URL || import.meta.env.OPENAI_API_BASE || import.meta.env.OPENAI_API_HOST || import.meta.env.OPENAI_API_URL || '').trim()
 const openaiModelName = (import.meta.env.OPENAI_MODEL_NAME || import.meta.env.OPENAI_MODEL || 'gpt-4o-mini')
@@ -18,14 +17,6 @@ const normalizeOpenAIBase = (baseIn?: string) => {
   const base = (baseIn || openaiBaseEnv || 'https://api.openai.com')
   const trimmed = base.replace(/\/$/, '')
   return trimmed.match(/\/(v1|v\d+)$/) ? trimmed : `${trimmed}/v1`
-}
-
-const detectProvider = () => {
-  if (providerFromEnv === 'openai' || providerFromEnv === 'oai' || providerFromEnv === 'chat' || providerFromEnv === 'openai-compatible')
-    return 'openai'
-  if (providerFromEnv === 'gemini' || providerFromEnv === 'google')
-    return 'gemini'
-  return openaiApiKey ? 'openai' : 'gemini'
 }
 
 const genAI = geminiApiBaseUrl
@@ -184,9 +175,19 @@ export const startChatAndSendMessageStream = async(
     return await streamFromGemini(history, newMessage, { baseUrl: m.baseUrl, apiKey: m.apiKey, model: m.model })
   }
 
-  // Fallback to legacy env-driven provider
-  const provider = detectProvider()
-  if (provider === 'openai')
-    return await streamFromOpenAI(history, newMessage)
-  return await streamFromGemini(history, newMessage)
+  // If registry exists but modelId not provided, use registry default
+  if (registry.length && !modelId) {
+    const defId = pickDefaultModelId(registry)
+    const m = getModelById(registry, defId)
+    if (m) {
+      if (m.provider === 'openai')
+        return await streamFromOpenAI(history, newMessage, { baseUrl: m.baseUrl, apiKey: m.apiKey, model: m.model, temperature: m.temperature })
+      return await streamFromGemini(history, newMessage, { baseUrl: m.baseUrl, apiKey: m.apiKey, model: m.model })
+    }
+  }
+
+  // Legacy fallback by available keys
+  if (openaiApiKey) return await streamFromOpenAI(history, newMessage)
+  if (geminiApiKey) return await streamFromGemini(history, newMessage)
+  throw new Error('No model configured')
 }

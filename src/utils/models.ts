@@ -96,12 +96,12 @@ export const loadModelsFromEnv = (): ModelConfig[] => {
   // Back-compat single provider envs (merge when MODELS_JSON exists)
   const getEnvVar = (key: string): string => {
     if (typeof window === 'undefined' && typeof process !== 'undefined') {
-      return (process.env[key] || '').trim()
+      const v = (process.env[key] || '')
+      if (v && v.trim()) return v.trim()
+      return (((import.meta as any).env?.[key]) || '').trim()
     }
     return ((import.meta.env as any)[key] || '').trim()
   }
-
-  const aiProvider = getEnvVar('AI_PROVIDER').toLowerCase()
 
   // OpenAI
   const openaiKey = getEnvVar('OPENAI_API_KEY') || getEnvVar('OPENAI_APIKEY')
@@ -131,16 +131,11 @@ export const pickDefaultModelId = (configs: ModelConfig[]): string | null => {
 
   const getEnvVar = (key: string): string => {
     if (typeof window === 'undefined' && typeof process !== 'undefined') {
-      return (process.env[key] || '').trim()
+      const v = (process.env[key] || '')
+      if (v && v.trim()) return v.trim()
+      return (((import.meta as any).env?.[key]) || '').trim()
     }
     return ((import.meta.env as any)[key] || '').trim()
-  }
-
-  const providerPref = getEnvVar('AI_PROVIDER').toLowerCase()
-  // If AI_PROVIDER is set, pick first model matching provider
-  if (providerPref === 'openai' || providerPref === 'gemini') {
-    const found = configs.find(m => m.provider === providerPref)
-    if (found) return found.id
   }
   // Optional explicit default
   const explicit = getEnvVar('DEFAULT_MODEL_ID')
@@ -156,3 +151,4 @@ export const getModelById = (configs: ModelConfig[], id?: string | null): ModelC
   if (!id) return configs.find(m => m.id === pickDefaultModelId(configs)) || configs[0]
   return configs.find(m => m.id === id) || null
 }
+

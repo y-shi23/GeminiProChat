@@ -15,7 +15,34 @@ const readJSON = (val?: string) => {
 const loadModelsFromEnv = (): ModelConfig[] => {
   const list: ModelConfig[] = []
 
-  // Read directly from .env file to handle multiline JSON values
+  // Load .env file manually for server-side API routes
+  const envVars: Record<string, string> = {}
+  try {
+    const envPath = join(process.cwd(), '.env')
+    const envContent = readFileSync(envPath, 'utf8')
+    const lines = envContent.split('\n')
+
+    for (const line of lines) {
+      const trimmed = line.trim()
+      if (!trimmed || trimmed.startsWith('#')) continue
+
+      const equalIndex = trimmed.indexOf('=')
+      if (equalIndex === -1) continue
+
+      const key = trimmed.slice(0, equalIndex).trim()
+      const value = trimmed.slice(equalIndex + 1).trim()
+      envVars[key] = value
+    }
+  } catch (error) {
+    console.warn('Could not load .env file:', error)
+  }
+
+  // Combine with process.env, giving priority to .env file
+  const getEnvVar = (key: string): string => {
+    return envVars[key] || process.env[key] || ''
+  }
+
+  // Read MODELS_JSON from .env
   let json = ''
   try {
     const envPath = join(process.cwd(), '.env')
@@ -47,8 +74,7 @@ const loadModelsFromEnv = (): ModelConfig[] => {
       }
     }
   } catch (error) {
-    // Fallback to process.env if direct file reading fails
-    json = (process.env.MODELS_JSON || '').trim()
+    console.warn('Could not read MODELS_JSON from .env file:', error)
   }
 
   const parsed = readJSON(json)
@@ -68,18 +94,19 @@ const loadModelsFromEnv = (): ModelConfig[] => {
   }
 
   // Back-compat single provider envs (merge when MODELS_JSON exists)
-  const openaiKey = (process.env.OPENAI_API_KEY || process.env.OPENAI_APIKEY || '').trim()
-  const openaiModel = (process.env.OPENAI_MODEL_NAME || process.env.OPENAI_MODEL || '').trim()
-  const openaiBase = (process.env.OPENAI_BASE_URL || process.env.OPENAI_API_BASE || process.env.OPENAI_API_HOST || process.env.OPENAI_API_URL || '').trim()
-  const openaiTemp = Number(process.env.OPENAI_TEMPERATURE || 0.7)
+  const openaiKey = (getEnvVar('OPENAI_API_KEY') || getEnvVar('OPENAI_APIKEY')).trim()
+  const openaiModel = (getEnvVar('OPENAI_MODEL_NAME') || getEnvVar('OPENAI_MODEL')).trim()
+  const openaiBase = (getEnvVar('OPENAI_BASE_URL') || getEnvVar('OPENAI_API_BASE') || getEnvVar('OPENAI_API_HOST') || getEnvVar('OPENAI_API_URL')).trim()
+  const openaiTemp = Number(getEnvVar('OPENAI_TEMPERATURE') || 0.7)
+
   if (openaiKey && openaiModel) {
     list.push({ id: 'openai_env', label: 'OpenAI (ENV)', provider: 'openai', model: openaiModel, baseUrl: openaiBase || undefined, apiKey: openaiKey, temperature: openaiTemp })
   }
 
   // Gemini
-  const geminiKey = (process.env.GEMINI_API_KEY || '').trim()
-  const geminiBase = (process.env.API_BASE_URL || '').trim()
-  const geminiModel = (process.env.GEMINI_MODEL_NAME || 'gemini-2.5-flash').trim()
+  const geminiKey = getEnvVar('GEMINI_API_KEY').trim()
+  const geminiBase = getEnvVar('API_BASE_URL').trim()
+  const geminiModel = (getEnvVar('GEMINI_MODEL_NAME') || 'gemini-2.5-flash').trim()
   if (geminiKey) {
     list.push({ id: 'gemini_env', label: 'Gemini (ENV)', provider: 'gemini', model: geminiModel, baseUrl: geminiBase || undefined, apiKey: geminiKey })
   }

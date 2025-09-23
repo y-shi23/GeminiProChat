@@ -525,21 +525,21 @@ export default () => {
                         class="absolute bottom-14 right-0 z-50 bg-$c-bg border border-slate/20 rounded-xl shadow-xl min-w-56 overflow-hidden transition-all duration-200 origin-bottom-right transform scale-100 opacity-100"
                         style={{ "font-family": "var(--font-response)" }}
                       >
-                        <div class="py-1">
+                        <div class="py-0">
                           <For each={models()}>
                             {(m) => (
                               <button
-                                class={`w-full text-left px-4 py-2 first:pt-0 last:pb-0 text-sm transition-colors ${m.id === currentModelId() ? 'bg-slate/15 font-medium' : 'hover:bg-slate/10'}`}
+                                class={`fi w-full text-left px-4 h-10 text-sm transition-colors ${m.id === currentModelId() ? 'bg-slate/15 font-medium' : 'hover:bg-slate/10'}`}
                                 onClick={() => {
                                   setCurrentModelId(m.id)
                                   localStorage.setItem('currentModelId', m.id)
                                   setShowModelMenu(false)
                                 }}
                               >
-                                <span class="inline-fcc w-6 h-6 mr-2 rounded-full bg-slate/20 text-xs font-bold leading-none">
+                                <span class="flex items-center justify-center w-6 h-6 mr-2 rounded-full bg-slate/20 text-xs font-bold">
                                   {m.label.slice(0, 1).toUpperCase()}
                                 </span>
-                                <span class="align-middle">{m.label}</span>
+                                <span class="flex-1">{m.label}</span>
                               </button>
                             )}
                           </For>
@@ -600,21 +600,21 @@ export default () => {
                     class="absolute bottom-14 right-0 z-50 bg-$c-bg border border-slate/20 rounded-xl shadow-xl min-w-56 overflow-hidden transition-all duration-200 origin-bottom-right transform scale-100 opacity-100"
                     style={{ "font-family": "var(--font-response)" }}
                   >
-                    <div class="py-1">
+                    <div class="py-0">
                       <For each={models()}>
                         {(m) => (
                         <button
-                          class={`w-full text-left px-4 py-2 first:pt-0 last:pb-0 text-sm transition-colors ${m.id === currentModelId() ? 'bg-slate/15 font-medium' : 'hover:bg-slate/10'}`}
+                          class={`fi w-full text-left px-4 h-10 text-sm transition-colors ${m.id === currentModelId() ? 'bg-slate/15 font-medium' : 'hover:bg-slate/10'}`}
                           onClick={() => {
                             setCurrentModelId(m.id)
                             localStorage.setItem('currentModelId', m.id)
                             setShowModelMenu(false)
                           }}
                           >
-                            <span class="inline-fcc w-6 h-6 mr-2 rounded-full bg-slate/20 text-xs font-bold leading-none">
+                            <span class="flex items-center justify-center w-6 h-6 mr-2 rounded-full bg-slate/20 text-xs font-bold">
                               {m.label.slice(0, 1).toUpperCase()}
                             </span>
-                            <span class="align-middle">{m.label}</span>
+                            <span class="flex-1">{m.label}</span>
                           </button>
                         )}
                       </For>
