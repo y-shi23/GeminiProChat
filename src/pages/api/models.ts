@@ -92,12 +92,6 @@ const publicModels = (configs: ModelConfig[]) =>
 
 const pickDefaultModelId = (configs: ModelConfig[]): string | null => {
   if (!configs.length) return null
-  const providerPref = (process.env.AI_PROVIDER || '').toLowerCase()
-  // If AI_PROVIDER is set, pick first model matching provider
-  if (providerPref === 'openai' || providerPref === 'gemini') {
-    const found = configs.find(m => m.provider === providerPref)
-    if (found) return found.id
-  }
   // Optional explicit default
   const explicit = (process.env.DEFAULT_MODEL_ID || '').trim()
   if (explicit) {
@@ -116,4 +110,3 @@ export const get: APIRoute = async() => {
     headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' },
   })
 }
-
