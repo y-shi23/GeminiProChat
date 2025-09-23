@@ -16,7 +16,8 @@ export default () => {
   const [currentAssistantMessage, setCurrentAssistantMessage] = createSignal('')
   const [loading, setLoading] = createSignal(false)
   const [controller, setController] = createSignal<AbortController>(null)
-  const [isStick, setStick] = createSignal(false)
+  // Auto-scroll to bottom when streaming; disables when user scrolls up
+  const [isStick, setStick] = createSignal(true)
   // const [showComingSoon, setShowComingSoon] = createSignal(false)
   const maxHistoryMessages = parseInt(import.meta.env.PUBLIC_MAX_HISTORY_MESSAGES || '99')
 
@@ -27,7 +28,15 @@ export default () => {
 
     window.addEventListener('scroll', () => {
       const nowPostion = window.scrollY
-      nowPostion < lastPostion && setStick(false)
+      // If user scrolls up, disable stick
+      if (nowPostion < lastPostion)
+        setStick(false)
+
+      // If user scrolls down and is near bottom, re-enable stick
+      const nearBottom = (window.innerHeight + window.scrollY) >= (document.body.scrollHeight - 120)
+      if (nowPostion >= lastPostion && nearBottom)
+        setStick(true)
+
       lastPostion = nowPostion
     })
 
@@ -66,7 +75,8 @@ export default () => {
       },
     ])
     requestWithLatestMessage()
-    instantToBottom()
+    // Ensure we start at the bottom when sending
+    smoothToBottom()
   }
 
   const smoothToBottom = useThrottleFn(() => {
@@ -74,7 +84,8 @@ export default () => {
   }, 300, false, true)
 
   const instantToBottom = () => {
-    window.scrollTo({ top: document.body.scrollHeight, behavior: 'instant' })
+    // Use standard behavior value 'auto' for immediate jump
+    window.scrollTo({ top: document.body.scrollHeight, behavior: 'auto' })
   }
 
   // ? Interim Solution
@@ -139,7 +150,8 @@ export default () => {
           if (char)
             setCurrentAssistantMessage(currentAssistantMessage() + char)
 
-          isStick() && instantToBottom()
+          // Smoothly follow the stream when stick is enabled
+          if (isStick()) smoothToBottom()
         }
         done = readerDone
       }
@@ -152,7 +164,7 @@ export default () => {
       return
     }
     archiveCurrentMessage()
-    isStick() && instantToBottom()
+    if (isStick()) smoothToBottom()
   }
 
   const archiveCurrentMessage = () => {
