@@ -519,31 +519,33 @@ export default () => {
                     </span>
                   </button>
                   <Show when={showModelMenu()}>
-                    <div
-                      class="absolute bottom-14 right-0 bg-$c-bg border border-slate/20 rounded-xl shadow-xl min-w-56 overflow-hidden transition-all duration-200 origin-bottom-right transform scale-100 opacity-100"
-                      style={{ "font-family": "var(--font-response)" }}
-                    >
-                      <div class="py-1">
-                        <For each={models()}>
-                          {(m) => (
-                            <button
-                              class={`w-full text-left px-4 py-2 text-sm transition-colors ${m.id === currentModelId() ? 'bg-slate/15 font-medium' : 'hover:bg-slate/10'}`}
-                              onClick={() => {
-                                setCurrentModelId(m.id)
-                                localStorage.setItem('currentModelId', m.id)
-                                setShowModelMenu(false)
-                              }}
-                            >
-                              <span class="inline-block w-6 h-6 mr-2 rounded-full bg-slate/20 fcc text-xs font-bold">
-                                {m.label.slice(0, 1).toUpperCase()}
-                              </span>
-                              <span class="align-middle">{m.label}</span>
-                              <span class="ml-2 text-$c-fg/50 text-xs">{m.provider}:{m.model}</span>
-                            </button>
-                          )}
-                        </For>
+                    <>
+                      <div class="fixed inset-0 z-40 bg-black/0" onClick={() => setShowModelMenu(false)} />
+                      <div
+                        class="absolute bottom-14 right-0 z-50 bg-$c-bg border border-slate/20 rounded-xl shadow-xl min-w-56 overflow-hidden transition-all duration-200 origin-bottom-right transform scale-100 opacity-100"
+                        style={{ "font-family": "var(--font-response)" }}
+                      >
+                        <div class="py-0">
+                          <For each={models()}>
+                            {(m) => (
+                              <button
+                                class={`w-full text-left px-4 py-2 text-sm transition-colors ${m.id === currentModelId() ? 'bg-slate/15 font-medium' : 'hover:bg-slate/10'}`}
+                                onClick={() => {
+                                  setCurrentModelId(m.id)
+                                  localStorage.setItem('currentModelId', m.id)
+                                  setShowModelMenu(false)
+                                }}
+                              >
+                                <span class="inline-fcc w-6 h-6 mr-2 rounded-full bg-slate/20 text-xs font-bold leading-none">
+                                  {m.label.slice(0, 1).toUpperCase()}
+                                </span>
+                                <span class="align-middle">{m.label}</span>
+                              </button>
+                            )}
+                          </For>
+                        </div>
                       </div>
-                    </div>
+                    </>
                   </Show>
                 </div>
               </div>
@@ -592,31 +594,33 @@ export default () => {
                 </span>
               </button>
               <Show when={showModelMenu()}>
-                <div
-                  class="absolute bottom-14 right-0 bg-$c-bg border border-slate/20 rounded-xl shadow-xl min-w-56 overflow-hidden transition-all duration-200 origin-bottom-right transform scale-100 opacity-100"
-                  style={{ "font-family": "var(--font-response)" }}
-                >
-                  <div class="py-1">
-                    <For each={models()}>
-                      {(m) => (
-                        <button
-                          class={`w-full text-left px-4 py-2 text-sm transition-colors ${m.id === currentModelId() ? 'bg-slate/15 font-medium' : 'hover:bg-slate/10'}`}
-                          onClick={() => {
-                            setCurrentModelId(m.id)
-                            localStorage.setItem('currentModelId', m.id)
-                            setShowModelMenu(false)
-                          }}
-                        >
-                          <span class="inline-block w-6 h-6 mr-2 rounded-full bg-slate/20 fcc text-xs font-bold">
-                            {m.label.slice(0, 1).toUpperCase()}
-                          </span>
-                          <span class="align-middle">{m.label}</span>
-                          <span class="ml-2 text-$c-fg/50 text-xs">{m.provider}:{m.model}</span>
-                        </button>
-                      )}
-                    </For>
+                <>
+                  <div class="fixed inset-0 z-40 bg-black/0" onClick={() => setShowModelMenu(false)} />
+                  <div
+                    class="absolute bottom-14 right-0 z-50 bg-$c-bg border border-slate/20 rounded-xl shadow-xl min-w-56 overflow-hidden transition-all duration-200 origin-bottom-right transform scale-100 opacity-100"
+                    style={{ "font-family": "var(--font-response)" }}
+                  >
+                    <div class="py-0">
+                      <For each={models()}>
+                        {(m) => (
+                          <button
+                            class={`w-full text-left px-4 py-2 text-sm transition-colors ${m.id === currentModelId() ? 'bg-slate/15 font-medium' : 'hover:bg-slate/10'}`}
+                            onClick={() => {
+                              setCurrentModelId(m.id)
+                              localStorage.setItem('currentModelId', m.id)
+                              setShowModelMenu(false)
+                            }}
+                          >
+                            <span class="inline-fcc w-6 h-6 mr-2 rounded-full bg-slate/20 text-xs font-bold leading-none">
+                              {m.label.slice(0, 1).toUpperCase()}
+                            </span>
+                            <span class="align-middle">{m.label}</span>
+                          </button>
+                        )}
+                      </For>
+                    </div>
                   </div>
-                </div>
+                </>
               </Show>
             </div>
           </div>
