@@ -4,6 +4,7 @@ import mdKatex from 'markdown-it-katex'
 import mdHighlight from 'markdown-it-highlightjs'
 import { useClipboard, useEventListener } from 'solidjs-use'
 import IconRefresh from './icons/Refresh'
+import IconCopy from './icons/Copy'
 import type { Accessor } from 'solid-js'
 import type { ChatMessage } from '@/types'
 
@@ -77,6 +78,11 @@ export default ({ role, message, showRetry, onRetry }: Props) => {
     return ''
   }
 
+  const copyWholeMessage = () => {
+    const text = typeof message === 'function' ? message() : (message || '')
+    copy(text)
+  }
+
   return (
     <div class="py-2 -mx-4 px-4 transition-colors md:hover:bg-slate/3 group">
       <div class="flex gap-3 rounded-lg" class:op-75={role === 'user'}>
@@ -87,12 +93,18 @@ export default ({ role, message, showRetry, onRetry }: Props) => {
           innerHTML={htmlString()}
         />
       </div>
-      {showRetry?.() && onRetry && (
-        <div class="fie px-3 mb-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-          <div onClick={onRetry} class="gpt-retry-btn">
-            <IconRefresh />
-            <span>Regenerate</span>
-          </div>
+      {role === 'assistant' && (
+        <div class="fie gap-2 px-3 mb-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+          <button onClick={copyWholeMessage} class="gpt-retry-btn relative group/item" type="button">
+            <IconCopy />
+            <div class="group-hover/item:op-100 gpt-copy-tips-below select-none">Copy</div>
+          </button>
+          {showRetry?.() && onRetry && (
+            <button onClick={onRetry} class="gpt-retry-btn relative group/item" type="button">
+              <IconRefresh />
+              <div class="group-hover/item:op-100 gpt-copy-tips-below select-none">Regenerate</div>
+            </button>
+          )}
         </div>
       )}
     </div>
