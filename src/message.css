@@ -37,3 +37,8 @@
 .message samp {
   font-family: var(--font-mono, ui-monospace, SF Mono, Monaco, Consolas, 'Courier New', monospace);
 }
+
+/* Show the Copy tooltip only when hovering its own copy button */
+.gpt-copy-btn:hover .gpt-copy-tips {
+  opacity: 1;
+}
