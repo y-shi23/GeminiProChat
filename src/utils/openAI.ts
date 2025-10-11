@@ -2,39 +2,68 @@ import { GoogleGenerativeAI } from '@fuyun/generative-ai'
 import { createParser } from 'eventsource-parser'
 import { getModelById, loadModelsFromEnv, pickDefaultModelId } from './models'
 
-// Gemini config
-const geminiApiKey = (import.meta.env.GEMINI_API_KEY)
-const geminiApiBaseUrl = (import.meta.env.API_BASE_URL)?.trim().replace(/\/$/, '')
-const geminiModelName = (import.meta.env.GEMINI_MODEL_NAME) || 'gemini-2.5-flash'
-
-// OpenAI-format config
-const openaiApiKey = (import.meta.env.OPENAI_API_KEY || import.meta.env.OPENAI_APIKEY || '')
-const openaiBaseEnv = (import.meta.env.OPENAI_BASE_URL || import.meta.env.OPENAI_API_BASE || import.meta.env.OPENAI_API_HOST || import.meta.env.OPENAI_API_URL || '').trim()
-const openaiModelName = (import.meta.env.OPENAI_MODEL_NAME || import.meta.env.OPENAI_MODEL || 'gpt-4o-mini')
-const openaiTemperature = Number(import.meta.env.OPENAI_TEMPERATURE || 0.7)
-
 const normalizeOpenAIBase = (baseIn?: string) => {
-  const base = (baseIn || openaiBaseEnv || 'https://api.openai.com')
+  const base = baseIn || 'https://api.openai.com'
   const trimmed = base.replace(/\/$/, '')
   return trimmed.match(/\/(v1|v\d+)$/) ? trimmed : `${trimmed}/v1`
 }
 
-const genAI = geminiApiBaseUrl
-  ? new GoogleGenerativeAI(geminiApiKey, geminiApiBaseUrl)
-  : new GoogleGenerativeAI(geminiApiKey)
-
-async function streamFromOpenAI(history: ChatMessage[], newMessage: string, opts?: { baseUrl?: string; apiKey?: string; model?: string; temperature?: number }) {
-  const effectiveKey = (opts?.apiKey || openaiApiKey)
+async function streamFromOpenAI(history: ChatMessage[], newMessageParts: ChatMessage['parts'], opts?: { baseUrl?: string; apiKey?: string; model?: string; temperature?: number }) {
+  const effectiveKey = opts?.apiKey
   if (!effectiveKey)
-    throw new Error('OPENAI_API_KEY is required for OpenAI provider')
+    throw new Error('API key is required for OpenAI provider')
 
   const messages = [
     ...history.map(m => ({
       role: m.role === 'model' ? 'assistant' : 'user',
-      content: m.parts.map(p => p.text).join(''),
+      content: m.parts.map(p => p.text || '').join(''),
     })),
-    { role: 'user', content: newMessage },
   ]
+
+  // Process the new message parts
+  const content = []
+  let hasImage = false
+
+  for (const part of newMessageParts) {
+    if (part.text) {
+      content.push({
+        type: 'text',
+        text: part.text
+      })
+    }
+    if (part.image) {
+      hasImage = true
+      // Image is already in base64 format from frontend
+      try {
+        // Ensure the base64 data has the correct format
+        let base64Url = part.image.url
+        if (!base64Url.startsWith('data:')) {
+          throw new Error('Invalid image format')
+        }
+
+        content.push({
+          type: 'image_url',
+          image_url: {
+            url: base64Url,
+            detail: 'high'
+          }
+        })
+      } catch (error) {
+        console.error('Failed to process image:', error)
+        throw new Error('Failed to process uploaded image')
+      }
+    }
+  }
+
+  // If there's no content, throw an error
+  if (content.length === 0) {
+    throw new Error('Message must contain text or images')
+  }
+
+  messages.push({
+    role: 'user',
+    content: hasImage ? content : content[0].text
+  })
 
   const base = normalizeOpenAIBase(opts?.baseUrl?.trim())
   const url = `${base}/chat/completions`
@@ -46,9 +75,9 @@ async function streamFromOpenAI(history: ChatMessage[], newMessage: string, opts
       Authorization: `Bearer ${effectiveKey}`,
     },
     body: JSON.stringify({
-      model: opts?.model || openaiModelName,
+      model: opts?.model,
       messages,
-      temperature: opts?.temperature ?? openaiTemperature,
+      temperature: opts?.temperature,
       stream: true,
     }),
   })
@@ -115,10 +144,13 @@ async function streamFromOpenAI(history: ChatMessage[], newMessage: string, opts
   return stream
 }
 
-async function streamFromGemini(history: ChatMessage[], newMessage: string, opts?: { baseUrl?: string; apiKey?: string; model?: string }) {
-  const apiKey = opts?.apiKey || geminiApiKey
-  const baseUrl = (opts?.baseUrl && opts.baseUrl.trim()) || geminiApiBaseUrl
-  const modelName = opts?.model || geminiModelName
+async function streamFromGemini(history: ChatMessage[], newMessageParts: ChatMessage['parts'], opts?: { baseUrl?: string; apiKey?: string; model?: string }) {
+  const apiKey = opts?.apiKey
+  const baseUrl = opts?.baseUrl && opts.baseUrl.trim()
+  const modelName = opts?.model
+
+  if (!apiKey)
+    throw new Error('API key is required for Gemini provider')
 
   const client = baseUrl
     ? new GoogleGenerativeAI(apiKey, baseUrl)
@@ -126,11 +158,61 @@ async function streamFromGemini(history: ChatMessage[], newMessage: string, opts
 
   const model = client.getGenerativeModel({ model: modelName })
 
+  // Convert history parts to Gemini format
+  const convertedHistory = history.map(msg => ({
+    role: msg.role,
+    parts: msg.parts.map(part => {
+      if (part.text) return part.text
+      if (part.image) {
+        // For Gemini, we need to handle inline data
+        if (!part.image.url.startsWith('data:')) {
+          return ''
+        }
+        const base64Data = part.image.url.split(',')[1] // Extract base64 data from data URL
+        return {
+          inlineData: {
+            mimeType: part.image.type,
+            data: base64Data
+          }
+        }
+      }
+      return ''
+    }).filter(Boolean)
+  }))
+
+  // Convert new message parts to Gemini format
+  const parts = []
+  for (const part of newMessageParts) {
+    if (part.text) {
+      parts.push(part.text)
+    }
+    if (part.image) {
+      try {
+        // Image is already in base64 format from frontend
+        if (!part.image.url.startsWith('data:')) {
+          throw new Error('Invalid image format')
+        }
+        const base64Data = part.image.url.split(',')[1] // Extract base64 data from data URL
+
+        parts.push({
+          inlineData: {
+            mimeType: part.image.type,
+            data: base64Data
+          }
+        })
+      } catch (error) {
+        console.error('Failed to process image for Gemini:', error)
+        throw new Error('Failed to process uploaded image')
+      }
+    }
+  }
+
+  if (parts.length === 0) {
+    throw new Error('Message must contain text or images')
+  }
+
   const chat = model.startChat({
-    history: history.map(msg => ({
-      role: msg.role,
-      parts: msg.parts.map(part => part.text).join(''),
-    })),
+    history: convertedHistory,
     generationConfig: {
       maxOutputTokens: 8000,
     },
@@ -142,7 +224,7 @@ async function streamFromGemini(history: ChatMessage[], newMessage: string, opts
     ],
   })
 
-  const result = await chat.sendMessageStream(newMessage)
+  const result = await chat.sendMessageStream(parts)
 
   const encodedStream = new ReadableStream({
     async start(controller) {
@@ -161,33 +243,21 @@ async function streamFromGemini(history: ChatMessage[], newMessage: string, opts
 
 export const startChatAndSendMessageStream = async(
   history: ChatMessage[],
-  newMessage: string,
+  newMessageParts: ChatMessage['parts'],
   modelId?: string | null,
 ) => {
-  // If a specific modelId is provided, select from registry
+  // Load models from environment
   const registry = loadModelsFromEnv()
-  if (registry.length && modelId) {
-    const m = getModelById(registry, modelId)
-    if (!m)
-      throw new Error('Invalid modelId')
-    if (m.provider === 'openai')
-      return await streamFromOpenAI(history, newMessage, { baseUrl: m.baseUrl, apiKey: m.apiKey, model: m.model, temperature: m.temperature })
-    return await streamFromGemini(history, newMessage, { baseUrl: m.baseUrl, apiKey: m.apiKey, model: m.model })
-  }
 
-  // If registry exists but modelId not provided, use registry default
-  if (registry.length && !modelId) {
-    const defId = pickDefaultModelId(registry)
-    const m = getModelById(registry, defId)
-    if (m) {
-      if (m.provider === 'openai')
-        return await streamFromOpenAI(history, newMessage, { baseUrl: m.baseUrl, apiKey: m.apiKey, model: m.model, temperature: m.temperature })
-      return await streamFromGemini(history, newMessage, { baseUrl: m.baseUrl, apiKey: m.apiKey, model: m.model })
-    }
-  }
+  // Select model
+  const targetModelId = modelId || pickDefaultModelId(registry)
+  const m = getModelById(registry, targetModelId)
 
-  // Legacy fallback by available keys
-  if (openaiApiKey) return await streamFromOpenAI(history, newMessage)
-  if (geminiApiKey) return await streamFromGemini(history, newMessage)
-  throw new Error('No model configured')
+  if (!m)
+    throw new Error('Invalid modelId')
+
+  if (m.provider === 'openai')
+    return await streamFromOpenAI(history, newMessageParts, { baseUrl: m.baseUrl, apiKey: m.apiKey, model: m.model, temperature: m.temperature })
+
+  return await streamFromGemini(history, newMessageParts, { baseUrl: m.baseUrl, apiKey: m.apiKey, model: m.model })
 }

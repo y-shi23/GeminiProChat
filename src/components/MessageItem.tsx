@@ -13,9 +13,10 @@ interface Props {
   message: Accessor<string> | string
   showRetry?: Accessor<boolean>
   onRetry?: () => void
+  parts?: Accessor<ChatMessage['parts']>
 }
 
-export default ({ role, message, showRetry, onRetry }: Props) => {
+export default ({ role, message, showRetry, onRetry, parts }: Props) => {
   const roleClass = {
     system: 'bg-gradient-to-r from-gray-300 via-gray-200 to-gray-300',
     user: 'bg-gradient-to-r from-purple-400 to-yellow-400',
@@ -70,12 +71,41 @@ export default ({ role, message, showRetry, onRetry }: Props) => {
       </div>`
     }
 
-    if (typeof message === 'function')
-      return md.render(message())
-    else if (typeof message === 'string')
-      return md.render(message)
+    let text = ''
 
-    return ''
+    // Get text from parts if available, otherwise use message prop
+    if (parts) {
+      const partsList = parts()
+      text = partsList.map(p => p.text || '').join('')
+    } else if (typeof message === 'function') {
+      text = message()
+    } else if (typeof message === 'string') {
+      text = message
+    }
+
+    return md.render(text)
+  }
+
+  const renderImages = () => {
+    if (!parts) return null
+
+    const partsList = parts()
+    const images = partsList.filter(p => p.image)
+
+    if (images.length === 0) return null
+
+    return (
+      <div class="flex flex-wrap gap-2 mb-3">
+        {images.map((img, index) => (
+          <img
+            src={img.image!.url}
+            alt={img.image!.name}
+            class="max-w-48 max-h-48 rounded-lg border border-gray-200 dark:border-gray-600 object-cover"
+            title={img.image!.name}
+          />
+        ))}
+      </div>
+    )
   }
 
   const copyWholeMessage = () => {
@@ -87,11 +117,14 @@ export default ({ role, message, showRetry, onRetry }: Props) => {
     <div class="py-2 -mx-4 px-4 transition-colors md:hover:bg-slate/3 group">
       <div class="flex gap-3 rounded-lg" class:op-75={role === 'user'}>
         <div class={`shrink-0 w-7 h-7 mt-4 rounded-full op-80 ${roleClass[role]}`} />
-        <div
-          class="message prose break-words overflow-hidden"
-          classList={{ 'msg-assistant': role === 'assistant', 'msg-user': role === 'user' }}
-          innerHTML={htmlString()}
-        />
+        <div class="flex-1">
+          {renderImages()}
+          <div
+            class="message prose break-words overflow-hidden"
+            classList={{ 'msg-assistant': role === 'assistant', 'msg-user': role === 'user' }}
+            innerHTML={htmlString()}
+          />
+        </div>
       </div>
       {role === 'assistant' && (
         <div class="fie gap-2 px-3 mb-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">

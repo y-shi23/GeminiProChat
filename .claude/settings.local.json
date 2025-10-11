@@ -4,7 +4,8 @@
       "Bash(npm run dev:*)",
       "Bash(npm run lint)",
       "WebFetch(domain:localhost)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(node:*)"
     ],
     "deny": [],
     "ask": []

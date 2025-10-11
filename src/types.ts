@@ -1,5 +1,11 @@
 export interface ChatPart {
-  text: string
+  text?: string
+  image?: {
+    url: string
+    name: string
+    size: number
+    type: string
+  }
 }
 
 export interface ChatMessage {

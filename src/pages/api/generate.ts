@@ -25,7 +25,9 @@ export const post: APIRoute = async(context) => {
     }), { status: 401 })
   }
 
-  if (import.meta.env.PROD && !await verifySignature({ t: time, m: messages[messages.length - 1].parts.map(part => part.text).join('') }, sign)) {
+  // Get the last message content for signature verification
+  const lastMessageContent = messages[messages.length - 1].parts.map(part => part.text || '').join('')
+  if (import.meta.env.PROD && !await verifySignature({ t: time, m: lastMessageContent }, sign)) {
     return new Response(JSON.stringify({
       error: {
         message: 'Invalid signature.',
@@ -35,10 +37,10 @@ export const post: APIRoute = async(context) => {
 
   try {
     const history = messages.slice(0, -1) // All messages except the last one
-    const newMessage = messages[messages.length - 1].parts.map(part => part.text).join('')
+    const newMessageParts = messages[messages.length - 1].parts
 
     // Start chat and send message with streaming
-    const responseStream = await startChatAndSendMessageStream(history, newMessage, modelId)
+    const responseStream = await startChatAndSendMessageStream(history, newMessageParts, modelId)
 
     return new Response(responseStream, {
       status: 200,

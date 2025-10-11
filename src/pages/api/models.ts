@@ -74,11 +74,6 @@ const loadModelsFromEnv = (): ModelConfig[] => {
     console.warn('Could not load .env file:', error)
   }
 
-  // Combine with process.env, giving priority to .env file
-  const getEnvVar = (key: string): string => {
-    return envVars[key] || process.env[key] || ''
-  }
-
   // Read MODELS_JSON from .env
   let json = ''
   try {
@@ -92,9 +87,11 @@ const loadModelsFromEnv = (): ModelConfig[] => {
         let value = line.slice('MODELS_JSON='.length).trim()
 
         // Handle multiline JSON values
-        if (value.startsWith('[') && !value.endsWith(']')) {
+        if (value.startsWith('[')) {
           const valueLines = [value]
           i++
+
+          // Collect lines until we find the closing bracket
           while (i < lines.length) {
             const nextLine = lines[i]
             valueLines.push(nextLine)
@@ -103,7 +100,14 @@ const loadModelsFromEnv = (): ModelConfig[] => {
             }
             i++
           }
+
           value = valueLines.join('\n').trim()
+
+          // Remove any comments or extra content after the closing bracket
+          const bracketIndex = value.lastIndexOf(']')
+          if (bracketIndex !== -1) {
+            value = value.substring(0, bracketIndex + 1)
+          }
         }
 
         json = value
@@ -114,7 +118,11 @@ const loadModelsFromEnv = (): ModelConfig[] => {
     console.warn('Could not read MODELS_JSON from .env file:', error)
   }
 
+  console.log('Raw MODELS_JSON content:', json || 'undefined')
+
   const parsed = readJSON(json)
+  console.log('Parsed MODELS_JSON:', parsed)
+
   if (Array.isArray(parsed) && parsed.length) {
     const fromJson: ModelConfig[] = parsed
       .map((m: any) => ({
@@ -126,25 +134,14 @@ const loadModelsFromEnv = (): ModelConfig[] => {
         temperature: (m.temperature != null ? Number(m.temperature) : undefined),
       }))
       .filter(m => (m.provider === 'openai' || m.provider === 'gemini') && m.model)
+
+    console.log('Processed models:', fromJson)
     list.push(...fromJson)
   }
 
-  // Back-compat single provider envs (merge when MODELS_JSON exists)
-  const openaiKey = (getEnvVar('OPENAI_API_KEY') || getEnvVar('OPENAI_APIKEY')).trim()
-  const openaiModel = (getEnvVar('OPENAI_MODEL_NAME') || getEnvVar('OPENAI_MODEL')).trim()
-  const openaiBase = (getEnvVar('OPENAI_BASE_URL') || getEnvVar('OPENAI_API_BASE') || getEnvVar('OPENAI_API_HOST') || getEnvVar('OPENAI_API_URL')).trim()
-  const openaiTemp = Number(getEnvVar('OPENAI_TEMPERATURE') || 0.7)
-
-  if (openaiKey && openaiModel) {
-    list.push({ id: openaiModel, provider: 'openai', model: openaiModel, baseUrl: openaiBase || undefined, apiKey: openaiKey, temperature: openaiTemp })
-  }
-
-  // Gemini
-  const geminiKey = getEnvVar('GEMINI_API_KEY').trim()
-  const geminiBase = getEnvVar('API_BASE_URL').trim()
-  const geminiModel = (getEnvVar('GEMINI_MODEL_NAME') || 'gemini-2.5-flash').trim()
-  if (geminiKey) {
-    list.push({ id: 'Gemini (ENV)', provider: 'gemini', model: geminiModel, baseUrl: geminiBase || undefined, apiKey: geminiKey })
+  if (list.length === 0) {
+    console.error('No valid models found. Original parsed data:', parsed)
+    throw new Error('No models configured. Please set MODELS_JSON environment variable.')
   }
 
   return list
@@ -155,12 +152,7 @@ const publicModels = (configs: ModelConfig[]) =>
 
 const pickDefaultModelId = (configs: ModelConfig[]): string | null => {
   if (!configs.length) return null
-  // Optional explicit default
-  const explicit = (process.env.DEFAULT_MODEL_ID || '').trim()
-  if (explicit) {
-    const match = configs.find(m => m.id === explicit)
-    if (match) return match.id
-  }
+  // Return first model as default
   return configs[0].id
 }
 

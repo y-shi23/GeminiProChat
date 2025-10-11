@@ -12,6 +12,7 @@ import {
 } from '@/utils/sessions'
 import IconSend from './icons/Send'
 import IconX from './icons/X'
+import IconPicture from './icons/Picture'
 import MessageItem from './MessageItem'
 import ErrorMessageItem from './ErrorMessageItem'
 import Sidebar from './Sidebar'
@@ -19,10 +20,15 @@ import type { ChatMessage, ErrorMessage, ChatSession } from '@/types'
 
 export default () => {
   let inputRef: HTMLTextAreaElement
+  let fileInputRef: HTMLInputElement
 
   // Session management
   const [sessions, setSessions] = createSignal<ChatSession[]>([])
   const [currentSessionId, setCurrentSessionId] = createSignal<string | null>(null)
+
+  // Image upload state
+  const [uploadedImages, setUploadedImages] = createSignal<Array<{ url: string; name: string; size: number; type: string }>>([])
+  const [isDragging, setIsDragging] = createSignal(false)
 
   // Current session state
   const [messageList, setMessageList] = createSignal<ChatMessage[]>([])
@@ -156,6 +162,8 @@ export default () => {
       setCurrentError(null)
       setCurrentAssistantMessage('')
       setStick(true)
+      // Clear uploaded images when creating new session
+      clearImages()
     })
 
     saveSessions(updatedSessions)
@@ -275,20 +283,34 @@ export default () => {
 
   const handleButtonClick = async() => {
     const inputValue = inputRef.value
-    if (!inputValue)
+    const images = uploadedImages()
+
+    if (!inputValue && images.length === 0)
       return
 
     inputRef.value = ''
 
+    // Create message parts
+    const parts: any[] = []
+    if (inputValue) {
+      parts.push({ text: inputValue })
+    }
+    images.forEach(img => {
+      parts.push({ image: img })
+    })
+
     const newMessage: ChatMessage = {
       role: 'user',
-      parts: [{ text: inputValue }],
+      parts,
     }
 
     const updatedMessages = [...messageList(), newMessage]
     setMessageList(updatedMessages)
     // Persist session title and messages promptly for correctness
     saveCurrentSession()
+
+    // Clear uploaded images after sending
+    clearImages()
 
     // Enable stick when user sends a message to ensure they see the response
     setStick(true)
@@ -444,8 +466,112 @@ export default () => {
     }
   }
 
+  // Image upload handlers
+  const handleFileSelect = (files: FileList | null) => {
+    if (!files) return
+
+    const processFile = (file: File): Promise<{ url: string; name: string; size: number; type: string }> => {
+      return new Promise((resolve) => {
+        if (file.type.startsWith('image/')) {
+          const reader = new FileReader()
+          reader.onload = (e) => {
+            const base64 = e.target?.result as string
+            resolve({
+              url: base64,
+              name: file.name,
+              size: file.size,
+              type: file.type
+            })
+          }
+          reader.readAsDataURL(file)
+        } else {
+          resolve(null as any)
+        }
+      })
+    }
+
+    const processFiles = async () => {
+      const promises = Array.from(files).map(processFile)
+      const results = await Promise.all(promises)
+      const newImages = results.filter(img => img !== null)
+
+      if (newImages.length > 0) {
+        setUploadedImages([...uploadedImages(), ...newImages])
+      }
+    }
+
+    processFiles()
+  }
+
+  const handleImageUpload = () => {
+    fileInputRef.click()
+  }
+
+  const removeImage = (index: number) => {
+    const images = uploadedImages()
+    setUploadedImages(images.filter((_, i) => i !== index))
+  }
+
+  const clearImages = () => {
+    setUploadedImages([])
+  }
+
+  // Drag and drop handlers
+  const handleDragEnter = (e: DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(true)
+  }
+
+  const handleDragLeave = (e: DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(false)
+  }
+
+  const handleDragOver = (e: DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+  }
+
+  const handleDrop = (e: DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(false)
+
+    handleFileSelect(e.dataTransfer?.files || null)
+  }
+
   return (
-    <div my-6>
+    <div
+      my-6
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
+      class={isDragging() ? 'drag-active' : ''}
+    >
+      {/* Drag overlay */}
+      <Show when={isDragging()}>
+        <div class="fixed inset-0 z-50 bg-blue-500/20 backdrop-blur-sm flex items-center justify-center">
+          <div class="bg-white dark:bg-gray-800 rounded-2xl p-8 shadow-2xl text-center">
+            <div class="text-6xl mb-4">📸</div>
+            <div class="text-xl font-semibold text-gray-800 dark:text-gray-200">Drop images here</div>
+            <div class="text-sm text-gray-500 dark:text-gray-400 mt-2">Release to upload</div>
+          </div>
+        </div>
+      </Show>
+
+      {/* Hidden file input */}
+      <input
+        ref={fileInputRef!}
+        type="file"
+        accept="image/*"
+        multiple
+        style={{ display: 'none' }}
+        onChange={(e) => handleFileSelect((e.target as HTMLInputElement).files)}
+      />
+
       {/* Sidebar */}
       <Sidebar
         sessions={sessions()}
@@ -461,6 +587,7 @@ export default () => {
             role={message().role === 'model' ? 'assistant' : 'user'}
             // Pass accessor to keep reactivity when switching sessions or updating messages
             message={() => message().parts.map(p => p.text).join('')}
+            parts={() => message().parts}
             showRetry={() => (message().role === 'model' && index === messageList().length - 1)}
             onRetry={retryLastFetch}
           />
@@ -481,6 +608,33 @@ export default () => {
 
         <div class="fixed bottom-8 left-0 right-0 z-10 bg-[var(--c-bg)] pt-2 pb-4">
           <div class="max-w-[70ch] mx-auto px-8">
+            {/* Image preview area */}
+            <Show when={uploadedImages().length > 0}>
+              <div class="mb-3 flex flex-wrap gap-2">
+                <For each={uploadedImages()}>
+                  {(img, index) => (
+                    <div class="relative group">
+                      <img
+                        src={img.url}
+                        alt={img.name}
+                        class="w-20 h-20 object-cover rounded-lg border border-gray-200 dark:border-gray-600"
+                      />
+                      <button
+                        onClick={() => removeImage(index())}
+                        class="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-xs"
+                        title="Remove image"
+                      >
+                        ×
+                      </button>
+                      <div class="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-xs p-1 rounded-b-lg opacity-0 group-hover:opacity-100 transition-opacity">
+                        {img.name}
+                      </div>
+                    </div>
+                  )}
+                </For>
+              </div>
+            </Show>
+
             <Show
               when={!loading()}
               fallback={() => (
@@ -491,6 +645,9 @@ export default () => {
               )}
             >
               <div class="gen-text-wrapper relative">
+                <button onClick={handleImageUpload} title="Upload image" class="absolute left-3 top-1/2 -translate-y-1/2 z-10 p-2 hover:bg-slate/10 rounded-lg transition-all duration-200">
+                  <IconPicture />
+                </button>
                 <textarea
                   ref={inputRef!}
                   onKeyDown={handleKeydown}
@@ -502,7 +659,7 @@ export default () => {
                     inputRef.style.height = `${inputRef.scrollHeight}px`
                   }}
                   rows="1"
-                  class="gen-textarea"
+                  class="gen-textarea pl-12"
                 />
                 <button onClick={handleButtonClick} gen-slate-btn title="Send">
                   <IconSend />
@@ -556,6 +713,33 @@ export default () => {
 
       {/* Regular input area when no messages */}
       <Show when={messageList().length === 0}>
+        {/* Image preview area */}
+        <Show when={uploadedImages().length > 0}>
+          <div class="mb-3 flex flex-wrap gap-2 max-w-[70ch] mx-auto px-8">
+            <For each={uploadedImages()}>
+              {(img, index) => (
+                <div class="relative group">
+                  <img
+                    src={img.url}
+                    alt={img.name}
+                    class="w-20 h-20 object-cover rounded-lg border border-gray-200 dark:border-gray-600"
+                  />
+                  <button
+                    onClick={() => removeImage(index())}
+                    class="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-xs"
+                    title="Remove image"
+                  >
+                    ×
+                  </button>
+                  <div class="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-xs p-1 rounded-b-lg opacity-0 group-hover:opacity-100 transition-opacity">
+                    {img.name}
+                  </div>
+                </div>
+              )}
+            </For>
+          </div>
+        </Show>
+
         <Show
           when={!loading()}
           fallback={() => (
@@ -566,6 +750,9 @@ export default () => {
           )}
         >
           <div class="gen-text-wrapper relative">
+            <button onClick={handleImageUpload} title="Upload image" class="absolute left-3 top-1/2 -translate-y-1/2 z-10 p-2 hover:bg-slate/10 rounded-lg transition-all duration-200">
+              <IconPicture />
+            </button>
             <textarea
               ref={inputRef!}
               onKeyDown={handleKeydown}
@@ -577,7 +764,7 @@ export default () => {
                 inputRef.style.height = `${inputRef.scrollHeight}px`
               }}
               rows="1"
-              class="gen-textarea"
+              class="gen-textarea pl-12"
             />
             <button onClick={handleButtonClick} gen-slate-btn title="Send">
               <IconSend />

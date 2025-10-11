@@ -43,9 +43,11 @@ const readModelsJsonFromFile = (): string => {
           let value = line.slice('MODELS_JSON='.length).trim()
 
           // Handle multiline JSON values
-          if (value.startsWith('[') && !value.endsWith(']')) {
+          if (value.startsWith('[')) {
             const valueLines = [value]
             i++
+
+            // Collect lines until we find the closing bracket
             while (i < lines.length) {
               const nextLine = lines[i]
               valueLines.push(nextLine)
@@ -54,7 +56,14 @@ const readModelsJsonFromFile = (): string => {
               }
               i++
             }
+
             value = valueLines.join('\n').trim()
+
+            // Remove any comments or extra content after the closing bracket
+            const bracketIndex = value.lastIndexOf(']')
+            if (bracketIndex !== -1) {
+              value = value.substring(0, bracketIndex + 1)
+            }
           }
 
           return value
@@ -127,31 +136,8 @@ export const loadModelsFromEnv = (): ModelConfig[] => {
     list.push(...fromJson)
   }
 
-  // Back-compat single provider envs (merge when MODELS_JSON exists)
-  const getEnvVar = (key: string): string => {
-    if (typeof window === 'undefined' && typeof process !== 'undefined') {
-      const v = (process.env[key] || '')
-      if (v && v.trim()) return v.trim()
-      return (((import.meta as any).env?.[key]) || '').trim()
-    }
-    return ((import.meta.env as any)[key] || '').trim()
-  }
-
-  // OpenAI
-  const openaiKey = getEnvVar('OPENAI_API_KEY') || getEnvVar('OPENAI_APIKEY')
-  const openaiModel = getEnvVar('OPENAI_MODEL_NAME') || getEnvVar('OPENAI_MODEL')
-  const openaiBase = getEnvVar('OPENAI_BASE_URL') || getEnvVar('OPENAI_API_BASE') || getEnvVar('OPENAI_API_HOST') || getEnvVar('OPENAI_API_URL')
-  const openaiTemp = Number(getEnvVar('OPENAI_TEMPERATURE') || 0.7)
-  if (openaiKey && openaiModel) {
-    list.push({ id: openaiModel, provider: 'openai', model: openaiModel, baseUrl: openaiBase || undefined, apiKey: openaiKey, temperature: openaiTemp })
-  }
-
-  // Gemini
-  const geminiKey = getEnvVar('GEMINI_API_KEY')
-  const geminiBase = getEnvVar('API_BASE_URL')
-  const geminiModel = getEnvVar('GEMINI_MODEL_NAME') || 'gemini-2.5-flash'
-  if (geminiKey) {
-    list.push({ id: 'Gemini (ENV)', provider: 'gemini', model: geminiModel, baseUrl: geminiBase || undefined, apiKey: geminiKey })
+  if (list.length === 0) {
+    throw new Error('No models configured. Please set MODELS_JSON environment variable.')
   }
 
   return list
@@ -163,20 +149,7 @@ export const publicModels = (configs: ModelConfig[]): PublicModelOption[] =>
 export const pickDefaultModelId = (configs: ModelConfig[]): string | null => {
   if (!configs.length) return null
 
-  const getEnvVar = (key: string): string => {
-    if (typeof window === 'undefined' && typeof process !== 'undefined') {
-      const v = (process.env[key] || '')
-      if (v && v.trim()) return v.trim()
-      return (((import.meta as any).env?.[key]) || '').trim()
-    }
-    return ((import.meta.env as any)[key] || '').trim()
-  }
-  // Optional explicit default
-  const explicit = getEnvVar('DEFAULT_MODEL_ID')
-  if (explicit) {
-    const match = configs.find(m => m.id === explicit)
-    if (match) return match.id
-  }
+  // Return first model as default
   return configs[0].id
 }
 
