@@ -143,7 +143,7 @@ export const loadModelsFromEnv = (): ModelConfig[] => {
   const openaiBase = getEnvVar('OPENAI_BASE_URL') || getEnvVar('OPENAI_API_BASE') || getEnvVar('OPENAI_API_HOST') || getEnvVar('OPENAI_API_URL')
   const openaiTemp = Number(getEnvVar('OPENAI_TEMPERATURE') || 0.7)
   if (openaiKey && openaiModel) {
-    list.push({ id: 'OpenAI (ENV)', provider: 'openai', model: openaiModel, baseUrl: openaiBase || undefined, apiKey: openaiKey, temperature: openaiTemp })
+    list.push({ id: openaiModel, provider: 'openai', model: openaiModel, baseUrl: openaiBase || undefined, apiKey: openaiKey, temperature: openaiTemp })
   }
 
   // Gemini
