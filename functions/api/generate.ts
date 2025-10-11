@@ -1,7 +1,18 @@
 import { GoogleGenerativeAI } from '@fuyun/generative-ai'
 import { createParser } from 'eventsource-parser'
 
-type ChatMessage = { role: 'user' | 'model'; parts: { text: string }[] }
+type ChatMessage = {
+  role: 'user' | 'model'
+  parts: Array<{
+    text?: string
+    image?: {
+      url: string
+      name: string
+      size: number
+      type: string
+    }
+  }>
+}
 type Provider = 'openai' | 'gemini'
 
 type ModelConfig = {
@@ -68,14 +79,87 @@ const normalizeOpenAIBase = (baseIn?: string) => {
   return trimmed.match(/\/(v1|v\d+)$/) ? trimmed : `${trimmed}/v1`
 }
 
-async function streamFromOpenAI(env: any, history: ChatMessage[], newMessage: string, cfg?: ModelConfig) {
+async function streamFromOpenAI(env: any, history: ChatMessage[], newMessageParts: any[], cfg?: ModelConfig) {
   const apiKey = (cfg?.apiKey || env.OPENAI_API_KEY || env.OPENAI_APIKEY || '').trim()
   if (!apiKey) throw new Error('OPENAI_API_KEY is required for OpenAI provider')
 
   const messages = [
-    ...history.map(m => ({ role: m.role === 'model' ? 'assistant' : 'user', content: m.parts.map(p => p.text).join('') })),
-    { role: 'user', content: newMessage },
+    ...history.map(m => {
+      // If history has only text, use simple string content
+      const hasImage = m.parts.some(p => p.image)
+      if (!hasImage) {
+        return {
+          role: m.role === 'model' ? 'assistant' : 'user',
+          content: m.parts.map(p => p.text || '').join('')
+        }
+      }
+      // If history has images, use multi-part content format
+      const content = []
+      for (const part of m.parts) {
+        if (part.text) {
+          content.push({ type: 'text', text: part.text })
+        }
+        if (part.image && part.image.url.startsWith('data:')) {
+          content.push({
+            type: 'image_url',
+            image_url: {
+              url: part.image.url,
+              detail: 'high'
+            }
+          })
+        }
+      }
+      return {
+        role: m.role === 'model' ? 'assistant' : 'user',
+        content
+      }
+    }),
   ]
+
+  // Process the new message parts to handle both text and images
+  const content = []
+  let hasImage = false
+
+  for (const part of newMessageParts) {
+    if (part.text) {
+      content.push({
+        type: 'text',
+        text: part.text
+      })
+    }
+    if (part.image) {
+      hasImage = true
+      // Image is already in base64 format from frontend
+      try {
+        // Ensure the base64 data has the correct format
+        let base64Url = part.image.url
+        if (!base64Url.startsWith('data:')) {
+          throw new Error('Invalid image format')
+        }
+
+        content.push({
+          type: 'image_url',
+          image_url: {
+            url: base64Url,
+            detail: 'high'
+          }
+        })
+      } catch (error) {
+        console.error('Failed to process image:', error)
+        throw new Error('Failed to process uploaded image')
+      }
+    }
+  }
+
+  // If there's no content, throw an error
+  if (content.length === 0) {
+    throw new Error('Message must contain text or images')
+  }
+
+  messages.push({
+    role: 'user',
+    content: hasImage ? content : content[0].text
+  })
 
   const base = normalizeOpenAIBase(cfg?.baseUrl || env.OPENAI_BASE_URL || env.OPENAI_API_BASE || env.OPENAI_API_HOST || env.OPENAI_API_URL)
   const url = `${base}/chat/completions`
@@ -140,15 +224,69 @@ async function streamFromOpenAI(env: any, history: ChatMessage[], newMessage: st
   return stream
 }
 
-async function streamFromGemini(env: any, history: ChatMessage[], newMessage: string, cfg?: ModelConfig) {
+async function streamFromGemini(env: any, history: ChatMessage[], newMessageParts: any[], cfg?: ModelConfig) {
   const apiKey = (cfg?.apiKey || env.GEMINI_API_KEY || '').trim()
   const baseUrl = (cfg?.baseUrl || env.API_BASE_URL || '').trim() || undefined
   const modelName = cfg?.model || env.GEMINI_MODEL_NAME || 'gemini-2.5-flash'
 
   const client = baseUrl ? new GoogleGenerativeAI(apiKey, baseUrl) : new GoogleGenerativeAI(apiKey)
   const model = client.getGenerativeModel({ model: modelName })
+
+  // Convert history parts to Gemini format
+  const convertedHistory = history.map(msg => ({
+    role: msg.role,
+    parts: msg.parts.map(part => {
+      if (part.text) return part.text
+      if (part.image) {
+        // For Gemini, we need to handle inline data
+        if (!part.image.url.startsWith('data:')) {
+          return ''
+        }
+        const base64Data = part.image.url.split(',')[1] // Extract base64 data from data URL
+        return {
+          inlineData: {
+            mimeType: part.image.type,
+            data: base64Data
+          }
+        }
+      }
+      return ''
+    }).filter(Boolean)
+  }))
+
+  // Convert new message parts to Gemini format
+  const parts = []
+  for (const part of newMessageParts) {
+    if (part.text) {
+      parts.push(part.text)
+    }
+    if (part.image) {
+      try {
+        // Image is already in base64 format from frontend
+        if (!part.image.url.startsWith('data:')) {
+          throw new Error('Invalid image format')
+        }
+        const base64Data = part.image.url.split(',')[1] // Extract base64 data from data URL
+
+        parts.push({
+          inlineData: {
+            mimeType: part.image.type,
+            data: base64Data
+          }
+        })
+      } catch (error) {
+        console.error('Failed to process image for Gemini:', error)
+        throw new Error('Failed to process uploaded image')
+      }
+    }
+  }
+
+  if (parts.length === 0) {
+    throw new Error('Message must contain text or images')
+  }
+
   const chat = model.startChat({
-    history: history.map(msg => ({ role: msg.role, parts: msg.parts.map(part => part.text).join('') })),
+    history: convertedHistory,
     generationConfig: { maxOutputTokens: 8000 },
     safetySettings: [
       { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
@@ -158,7 +296,7 @@ async function streamFromGemini(env: any, history: ChatMessage[], newMessage: st
     ],
   })
 
-  const result = await chat.sendMessageStream(newMessage)
+  const result = await chat.sendMessageStream(parts)
   const encodedStream = new ReadableStream({
     async start(controller) {
       const encoder = new TextEncoder()
@@ -197,7 +335,7 @@ export const onRequestPost = async ({ request, env }: any) => {
     // Signature check (only when PUBLIC_SECRET_KEY is set)
     const secret = (env.PUBLIC_SECRET_KEY || '').trim()
     if (secret) {
-      const lastText = messages[messages.length - 1].parts.map((p: any) => p.text).join('')
+      const lastText = messages[messages.length - 1].parts.map((p: any) => p.text || '').filter(Boolean).join('')
       const expected = await sha256Hex(`${time}:${lastText}:${secret}`)
       if (expected !== sign) {
         return new Response(JSON.stringify({ error: { message: 'Invalid signature.' } }), { status: 401 })
@@ -205,7 +343,7 @@ export const onRequestPost = async ({ request, env }: any) => {
     }
 
     const history: ChatMessage[] = messages.slice(0, -1)
-    const newMessage: string = messages[messages.length - 1].parts.map((p: any) => p.text).join('')
+    const newMessageParts: any[] = messages[messages.length - 1].parts
 
     const configs = loadModelsFromEnv(env as any)
     let cfg = getModelById(configs, modelId)
@@ -220,8 +358,8 @@ export const onRequestPost = async ({ request, env }: any) => {
     }
 
     const stream = cfg.provider === 'openai'
-      ? await streamFromOpenAI(env, history, newMessage, cfg)
-      : await streamFromGemini(env, history, newMessage, cfg)
+      ? await streamFromOpenAI(env, history, newMessageParts, cfg)
+      : await streamFromGemini(env, history, newMessageParts, cfg)
 
     return new Response(stream, {
       status: 200,
