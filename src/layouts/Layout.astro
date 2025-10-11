@@ -234,6 +234,108 @@ const { title } = Astro.props;
   .message code,
   .message kbd,
   .message samp { font-family: var(--font-mono); }
+
+  /* Modern drag and drop animations */
+  @keyframes drag-fade-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes drag-scale-in {
+    from {
+      opacity: 0;
+      transform: translateY(-8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes drag-pulse {
+    0%, 100% {
+      opacity: 0.6;
+    }
+    50% {
+      opacity: 1;
+    }
+  }
+
+  /* Drag overlay styles */
+  .drag-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    animation: drag-fade-in 0.15s ease-out;
+  }
+
+  html.dark .drag-overlay {
+    background: rgba(0, 0, 0, 0.6);
+  }
+
+  .drag-card {
+    background: var(--c-bg);
+    border-radius: 16px;
+    padding: 2.5rem 3rem;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+    text-align: center;
+    animation: drag-scale-in 0.2s ease-out;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+  }
+
+  html.dark .drag-card {
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .drag-icon-wrapper {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 64px;
+    height: 64px;
+    margin: 0 auto 1.25rem;
+    background: rgba(0, 0, 0, 0.04);
+    border-radius: 12px;
+  }
+
+  html.dark .drag-icon-wrapper {
+    background: rgba(255, 255, 255, 0.06);
+  }
+
+  .drag-icon {
+    width: 36px;
+    height: 36px;
+    color: var(--c-fg);
+    opacity: 0.7;
+    stroke-width: 2;
+    animation: drag-pulse 2s ease-in-out infinite;
+  }
+
+  .drag-title {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--c-fg);
+    margin-bottom: 0.375rem;
+    letter-spacing: -0.01em;
+  }
+
+  .drag-subtitle {
+    font-size: 0.875rem;
+    color: var(--c-fg);
+    opacity: 0.5;
+    font-weight: 400;
+  }
 </style>
 
 <script>

@@ -5,7 +5,9 @@
       "Bash(npm run lint)",
       "WebFetch(domain:localhost)",
       "Bash(curl:*)",
-      "Bash(node:*)"
+      "Bash(node:*)",
+      "Bash(git restore:*)",
+      "Bash(npm run build:*)"
     ],
     "deny": [],
     "ask": []

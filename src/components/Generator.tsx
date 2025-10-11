@@ -29,6 +29,7 @@ export default () => {
   // Image upload state
   const [uploadedImages, setUploadedImages] = createSignal<Array<{ url: string; name: string; size: number; type: string }>>([])
   const [isDragging, setIsDragging] = createSignal(false)
+  const [dragCounter, setDragCounter] = createSignal(0)
 
   // Current session state
   const [messageList, setMessageList] = createSignal<ChatMessage[]>([])
@@ -226,6 +227,12 @@ export default () => {
       lastPostion = nowPostion
     })
 
+    // Add global drag and drop event listeners
+    document.body.addEventListener('dragenter', handleDragEnter)
+    document.body.addEventListener('dragover', handleDragOver)
+    document.body.addEventListener('dragleave', handleDragLeave)
+    document.body.addEventListener('drop', handleDrop)
+
     // Load model options
     try {
       const resp = await fetch('/api/models')
@@ -270,6 +277,11 @@ export default () => {
     window.addEventListener('beforeunload', handleBeforeUnload)
     onCleanup(() => {
       window.removeEventListener('beforeunload', handleBeforeUnload)
+      // Clean up global drag and drop event listeners
+      document.body.removeEventListener('dragenter', handleDragEnter)
+      document.body.removeEventListener('dragover', handleDragOver)
+      document.body.removeEventListener('dragleave', handleDragLeave)
+      document.body.removeEventListener('drop', handleDrop)
     })
   })
 
@@ -520,13 +532,29 @@ export default () => {
   const handleDragEnter = (e: DragEvent) => {
     e.preventDefault()
     e.stopPropagation()
-    setIsDragging(true)
+
+    // Increment counter on every dragenter
+    const newCounter = dragCounter() + 1
+    setDragCounter(newCounter)
+
+    // Only set dragging state if we have valid files
+    if (e.dataTransfer?.types?.includes('Files')) {
+      setIsDragging(true)
+    }
   }
 
   const handleDragLeave = (e: DragEvent) => {
     e.preventDefault()
     e.stopPropagation()
-    setIsDragging(false)
+
+    // Decrement counter on every dragleave
+    const newCounter = dragCounter() - 1
+    setDragCounter(newCounter)
+
+    // Only disable dragging state when counter reaches 0
+    if (newCounter === 0) {
+      setIsDragging(false)
+    }
   }
 
   const handleDragOver = (e: DragEvent) => {
@@ -537,27 +565,29 @@ export default () => {
   const handleDrop = (e: DragEvent) => {
     e.preventDefault()
     e.stopPropagation()
+
+    // Reset counter and dragging state
+    setDragCounter(0)
     setIsDragging(false)
 
     handleFileSelect(e.dataTransfer?.files || null)
   }
 
   return (
-    <div
-      my-6
-      onDragEnter={handleDragEnter}
-      onDragLeave={handleDragLeave}
-      onDragOver={handleDragOver}
-      onDrop={handleDrop}
-      class={isDragging() ? 'drag-active' : ''}
-    >
+    <div my-6>
       {/* Drag overlay */}
       <Show when={isDragging()}>
-        <div class="fixed inset-0 z-50 bg-blue-500/20 backdrop-blur-sm flex items-center justify-center">
-          <div class="bg-white dark:bg-gray-800 rounded-2xl p-8 shadow-2xl text-center">
-            <div class="text-6xl mb-4">📸</div>
-            <div class="text-xl font-semibold text-gray-800 dark:text-gray-200">Drop images here</div>
-            <div class="text-sm text-gray-500 dark:text-gray-400 mt-2">Release to upload</div>
+        <div class="drag-overlay">
+          <div class="drag-card">
+            <div class="drag-icon-wrapper">
+              <svg class="drag-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                <polyline points="21 15 16 10 5 21"></polyline>
+              </svg>
+            </div>
+            <div class="drag-title">Drop your images here</div>
+            <div class="drag-subtitle">Release to upload</div>
           </div>
         </div>
       </Show>
