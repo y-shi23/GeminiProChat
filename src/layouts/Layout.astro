@@ -254,3 +254,24 @@ const initTheme = () => {
 
 initTheme()
 </script>
+
+<script>
+// Auto-reload on new version detection
+if ('serviceWorker' in navigator) {
+  let refreshing = false
+
+  // Detect controller change and reload page
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (refreshing) return
+    refreshing = true
+    window.location.reload()
+  })
+
+  // Check for updates periodically
+  setInterval(() => {
+    navigator.serviceWorker.ready.then((registration) => {
+      registration.update()
+    })
+  }, 60 * 60 * 1000) // Check every hour
+}
+</script>
