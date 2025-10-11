@@ -52,70 +52,52 @@ const createDisplayName = (m: any): string => {
 const loadModelsFromEnv = (): ModelConfig[] => {
   const list: ModelConfig[] = []
 
-  // Load .env file manually for server-side API routes
-  const envVars: Record<string, string> = {}
-  try {
-    const envPath = join(process.cwd(), '.env')
-    const envContent = readFileSync(envPath, 'utf8')
-    const lines = envContent.split('\n')
+  // Get MODELS_JSON from environment variable (for production deployment like Cloudflare)
+  let json = process.env.MODELS_JSON || ''
 
-    for (const line of lines) {
-      const trimmed = line.trim()
-      if (!trimmed || trimmed.startsWith('#')) continue
+  // If not in environment, try to read from .env file (for local development)
+  if (!json) {
+    try {
+      const envPath = join(process.cwd(), '.env')
+      const envContent = readFileSync(envPath, 'utf8')
+      const lines = envContent.split('\n')
 
-      const equalIndex = trimmed.indexOf('=')
-      if (equalIndex === -1) continue
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].trim()
+        if (line.startsWith('MODELS_JSON=')) {
+          let value = line.slice('MODELS_JSON='.length).trim()
 
-      const key = trimmed.slice(0, equalIndex).trim()
-      const value = trimmed.slice(equalIndex + 1).trim()
-      envVars[key] = value
-    }
-  } catch (error) {
-    console.warn('Could not load .env file:', error)
-  }
-
-  // Read MODELS_JSON from .env
-  let json = ''
-  try {
-    const envPath = join(process.cwd(), '.env')
-    const envContent = readFileSync(envPath, 'utf8')
-    const lines = envContent.split('\n')
-
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i].trim()
-      if (line.startsWith('MODELS_JSON=')) {
-        let value = line.slice('MODELS_JSON='.length).trim()
-
-        // Handle multiline JSON values
-        if (value.startsWith('[')) {
-          const valueLines = [value]
-          i++
-
-          // Collect lines until we find the closing bracket
-          while (i < lines.length) {
-            const nextLine = lines[i]
-            valueLines.push(nextLine)
-            if (nextLine.trim().endsWith(']')) {
-              break
-            }
+          // Handle multiline JSON values
+          if (value.startsWith('[')) {
+            const valueLines = [value]
             i++
+
+            // Collect lines until we find the closing bracket
+            while (i < lines.length) {
+              const nextLine = lines[i]
+              valueLines.push(nextLine)
+              if (nextLine.trim().endsWith(']')) {
+                break
+              }
+              i++
+            }
+
+            value = valueLines.join('\n').trim()
+
+            // Remove any comments or extra content after the closing bracket
+            const bracketIndex = value.lastIndexOf(']')
+            if (bracketIndex !== -1) {
+              value = value.substring(0, bracketIndex + 1)
+            }
           }
 
-          value = valueLines.join('\n').trim()
-
-          // Remove any comments or extra content after the closing bracket
-          const bracketIndex = value.lastIndexOf(']')
-          if (bracketIndex !== -1) {
-            value = value.substring(0, bracketIndex + 1)
-          }
+          json = value
+          break
         }
-
-        json = value
-        break
       }
+    } catch (error) {
+      console.warn('Could not read MODELS_JSON from .env file:', error)
     }
-  } catch (error) {
-    console.warn('Could not read MODELS_JSON from .env file:', error)
   }
 
   console.log('Raw MODELS_JSON content:', json || 'undefined')
@@ -141,7 +123,9 @@ const loadModelsFromEnv = (): ModelConfig[] => {
 
   if (list.length === 0) {
     console.error('No valid models found. Original parsed data:', parsed)
-    throw new Error('No models configured. Please set MODELS_JSON environment variable.')
+    console.error('Environment MODELS_JSON:', process.env.MODELS_JSON || 'undefined')
+    console.error('Environment variables available:', Object.keys(process.env).filter(key => key.includes('MODEL') || key.includes('API')))
+    throw new Error('No models configured. Please set MODELS_JSON environment variable in your Cloudflare Pages settings.')
   }
 
   return list

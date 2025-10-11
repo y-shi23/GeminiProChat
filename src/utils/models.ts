@@ -28,10 +28,17 @@ const readJSON = (val?: string) => {
   }
 }
 
-// Function to read MODELS_JSON from .env file for server-side usage
+// Function to read MODELS_JSON from environment
 const readModelsJsonFromFile = (): string => {
   // Check if we're running in a server environment (Node.js)
   if (typeof window === 'undefined' && typeof process !== 'undefined') {
+    // Server-side: prioritize process.env for production deployments
+    const envJson = (process.env.MODELS_JSON || '').trim()
+    if (envJson) {
+      return envJson
+    }
+
+    // Fallback to reading .env file for local development
     try {
       const envPath = join(process.cwd(), '.env')
       const envContent = readFileSync(envPath, 'utf8')
@@ -70,12 +77,11 @@ const readModelsJsonFromFile = (): string => {
         }
       }
     } catch (error) {
-      // Fall back to process.env if file reading fails
-      return (process.env.MODELS_JSON || '').trim()
+      console.warn('Could not read MODELS_JSON from .env file:', error)
     }
   }
 
-  // Client-side: use import.meta.env
+  // Client-side: use import.meta.env for build-time environment variables
   return (import.meta.env.MODELS_JSON || import.meta.env.AI_MODELS || '').trim()
 }
 
@@ -137,7 +143,12 @@ export const loadModelsFromEnv = (): ModelConfig[] => {
   }
 
   if (list.length === 0) {
-    throw new Error('No models configured. Please set MODELS_JSON environment variable.')
+    console.error('No valid models found in client-side loading')
+    console.error('Available build-time vars:', {
+      MODELS_JSON: !!import.meta.env.MODELS_JSON,
+      AI_MODELS: !!import.meta.env.AI_MODELS
+    })
+    throw new Error('No models configured. Please ensure MODELS_JSON is set during build.')
   }
 
   return list
